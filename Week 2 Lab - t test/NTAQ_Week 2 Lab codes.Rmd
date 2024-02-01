@@ -245,7 +245,12 @@ shapiro_test(log(upland_sites$methane)) # Yes still non significant. Gotta do no
 # since near and far samples are independent, Wilcoxon rank sum is the go to:
 
 near_far_upland <-  upland_sites %>%
-  wilcox_test(methane ~ proximity) %>%
+  wilcox_test(methane ~ proximity, alternative = "two.sided") %>%
+  add_significance()
+near_far_upland
+
+near_far_upland <-  upland_sites %>%
+  wilcox_test(methane ~ proximity, alternative = "less") %>%
   add_significance()
 near_far_upland
 
