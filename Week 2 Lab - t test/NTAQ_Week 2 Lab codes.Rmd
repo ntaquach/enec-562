@@ -1,0 +1,313 @@
+---
+title: "Week_2_Problem_Set"
+author: "Nguyen Tien Anh Quach"
+date: "`r format(Sys.Date())`"
+output:
+  pdf_document: default
+  html_document: default
+chunk_output_type: inline
+---
+
+In this Problem Set, you will use R to conduct comparison of means tests (both parametric and non-parametric) to examine water quality in drinking wells in a fracking region of northeastern Pennsylvania. Please turn in both a write up (around two single-spaced pages of text (not including figures)) and .rmd file of your code. The write up must be submitted as a PDF that was knitted from your Rmd. Use tables to report your results in a clear and structured manner. While it is encouraged, you do not need to use In Line R coding to discuss your results. Your report (PDF) should not contain any R code or error messages. You will also need to submit ONE .Rmd file that contains all the code that you executed in RStudio (aka turn in a knitted version of the document and non-knitted version).
+
+In this problem set, we will analyze water quality data from a study conducted by Molofsky et al. (2013) that examined methane levels in 1,701 drinking wells in Susquehanna County, Pennsylvania. Through our analysis we will seek to determine whether methane levels in drinking water are greater in water wells near fracking sites than in water wells farther away from these sites. The authors grouped the wells into two categories: (1) drinking wells within 1 km radius of a fracking site, and (2) wells located outside a 1km radius of a fracking site. The drinking water wells are also classified as either in a valley or in an upland area (see Molofsky et al., 2013). Prior to completing the problem set, please read with Molofsky article.
+
+Our goal is to make inferences about methane concentrations across fracking group by conducting the following comparisons:
+(1) Methane levels near fracking sites vs. Methane levels far from fracking sites for ALL observations
+(2) Methane levels near fracking sites vs. Methane levels far from fracking sites for valley observations
+(3) Methane levels near fracking sites vs. Methane levels far from fracking sites for upland observations
+(4) Methane levels in the valley vs. Methane levels in the upland
+
+Data analysis Instructions
+1. Download the water quality data from Canvas, PAFracking.xlsx. Be sure to look over the data and then save as a .csv file before reading into RStudio.
+
+```{r message=F, warning=F, echo=F}
+getwd()
+library(readxl)
+library(dplyr)
+library(rstatix)
+#library(coin)
+library(kableExtra)
+```
+
+Load data: 
+
+```{r message=F, warning=F, echo=F}
+pafrack <- read_excel("PAFracking.xlsx", sheet = "Data")
+```
+
+2. Summarize and visualize the data by groups as outlined above (1-4). Present descriptive statistics in a professional table or tables. Include your graphics in a clearly labelled appendix.
+
+```{r message=F,warning=F, echo = F}
+
+### Near vs Far
+
+  ## ALL
+  library(dplyr)
+  pafrack %>%
+  group_by(proximity) %>%
+  summarise(
+    mean_methane = mean(methane),
+    median_methane = median(methane),
+    min_methane = min(methane),
+    max_methane = max(methane),
+    sd_methane = sd(methane)
+  ) %>% 
+  ungroup() %>% data.frame() %>%
+  kable("latex", booktabs = T, escape = F,
+        col.names = linebreak(c("Proximity\nCategory", "Mean\nMethane\nConc.",
+                                "Median\nMethane\nConc.", "Min\nMethane\nConc.",
+                                "Max\nMethane\nConc.", "Standard Deviation of\nMethane\nConc."
+        ), align = "c"))  %>%
+  column_spec(1:1, width = "1.5cm") %>%
+  kable_styling(position = "center") %>%
+  kable_styling(latex_options = "hold_position")
+
+```
+
+
+Now with only valley sites:
+```{r warning=F, message=F, echo=F}
+  ## Only valley sites
+  pafrack %>%
+  group_by(proximity) %>%
+  filter(location == "Valley") %>%
+  summarise(
+    mean_methane = mean(methane),
+    median_methane = median(methane),
+    min_methane = min(methane),
+    max_methane = max(methane),
+    sd_methane = sd(methane)
+  ) %>% 
+  ungroup() %>% data.frame() %>%
+  kable("latex", booktabs = T, escape = F,
+        col.names = linebreak(c("Proximity\nCategory", "Mean\nMethane\nConc.",
+                                "Median\nMethane\nConc.", "Min\nMethane\nConc.",
+                                "Max\nMethane\nConc.", "Standard Deviation of\nMethane\nConc."
+        ), align = "c"))  %>%
+  column_spec(1:1, width = "1.5cm") %>%
+  kable_styling(position = "center") %>%
+  kable_styling(latex_options = "HOLD_position")
+```
+
+
+Now with only upland sites:
+```{r warning=F, message=F, echo=F}
+  ## Only valley sites
+  pafrack %>%
+  group_by(proximity) %>%
+  filter(location == "Upland") %>%
+  summarise(
+    mean_methane = mean(methane),
+    median_methane = median(methane),
+    min_methane = min(methane),
+    max_methane = max(methane),
+    sd_methane = sd(methane)
+  ) %>% 
+  ungroup() %>% data.frame() %>%
+  kable("latex", booktabs = T, escape = F,
+        col.names = linebreak(c("Proximity\nCategory", "Mean\nMethane\nConc.",
+                                "Median\nMethane\nConc.", "Min\nMethane\nConc.",
+                                "Max\nMethane\nConc.", "Standard Deviation of\nMethane\nConc."
+        ), align = "c"))  %>%
+  column_spec(1:1, width = "1.5cm") %>%
+  kable_styling(position = "center") %>%
+  kable_styling(latex_options = "HOLD_position")
+```
+
+Now valley vs. upload, no matter the proximity:
+
+```{r warning=F, message=F, echo=F}
+  ## Only valley sites
+  pafrack %>%
+  group_by(location) %>%
+  summarise(
+    mean_methane = mean(methane),
+    median_methane = median(methane),
+    min_methane = min(methane),
+    max_methane = max(methane),
+    sd_methane = sd(methane)
+  ) %>% 
+  ungroup() %>% data.frame() %>%
+  kable("latex", booktabs = T, escape = F,
+        col.names = linebreak(c("Location", "Mean\nMethane\nConc.",
+                                "Median\nMethane\nConc.", "Min\nMethane\nConc.",
+                                "Max\nMethane\nConc.", "Standard Deviation of\nMethane\nConc."
+        ), align = "c"))  %>%
+  column_spec(1:1, width = "1.5cm") %>%
+  kable_styling(position = "center") %>%
+  kable_styling(latex_options = "HOLD_position")
+```
+
+
+3. Conduct the appropriate comparison tests to determine whether methane concentrations vary across 1-4 (above). For each of the four comparisons above, conduct:
+  a. Parametric t-test 
+  b. Non-parametric t-test
+  c. Parametric test on the log transformed data.
+  4. Interpret and discuss the results of each of the tests.
+  5. Examine and discuss the validity of the assumptions of your comparison tests. Remember to consider the transformation when interpreting the results of the transformed data set. Which of the tests are most valid?
+
+## Testing near vs far sites
+
+```{r message=F, warning=F, echo=F}
+## identifying outliers
+
+library(rstatix)
+pafrack %>% group_by(proximity) %>%
+  identify_outliers(methane)
+
+## test for normality
+pafrack %>% group_by(proximity) %>%
+  shapiro_test(methane) ## Okay so p-value is significant => either log transform data or non-parametric
+
+## try to visualize data
+
+library(ggplot2)
+ggplot(pafrack, aes(x=log10(methane))) + 
+  geom_histogram() ##still dont look normal
+
+## verify this: 
+shapiro_test(log(pafrack$methane)) # Yes still non significant. Gotta do non parametric now
+
+# since near and far samples are independent, Wilcoxon rank sum is the go to:
+
+near_far_all <- pafrack %>% 
+  wilcox_test(methane ~ proximity) %>%
+  add_significance()
+near_far_all
+
+near_far_all_eff <- pafrack %>% wilcox_effsize(methane ~ proximity)
+near_far_all_eff
+
+## OK, p is significant. Near and Far are different!
+
+```
+
+## Testing near vs far for valley sites
+
+```{r message=F, warning=F, echo=F}
+## identifying outliers
+
+valley_sites <- pafrack %>% group_by(proximity) %>%
+  filter(location == "Valley") %>% ungroup() #if you dont ungroup, test wont go thru
+
+valley_sites %>% identify_outliers(methane)
+
+## test for normality
+valley_sites %>% shapiro_test(methane) ## Okay so p-value is significant => either log transform data or non-parametric
+
+## try to visualize data
+
+library(ggplot2)
+ggplot(valley_sites, aes(x=methane)) + 
+  geom_histogram() ##dont look normal
+
+## try log trans : 
+shapiro_test(log(valley_sites$methane)) # Yes still non significant. Gotta do non parametric now
+
+# since near and far samples are independent, Wilcoxon rank sum is the go to:
+
+near_far_valley <-  valley_sites %>%
+  wilcox_test(methane ~ proximity) %>%
+  add_significance()
+near_far_valley
+
+near_far_valley_eff <- valley_sites %>% wilcox_effsize(methane ~ proximity)
+near_far_valley_eff
+
+## OK, p is significant. Near and Far are different at valley sites! effect size is small
+
+```
+
+
+## Testing near vs far for upland sites
+
+```{r message=F, warning=F, echo=F}
+## identifying outliers
+
+upland_sites <- pafrack %>% group_by(proximity) %>%
+  filter(location == "Upland") %>% ungroup() #if you dont ungroup, test wont go thru
+
+upland_sites %>% identify_outliers(methane)
+
+## test for normality
+upland_sites %>% shapiro_test(methane) ## Okay so p-value is significant => either log transform data or non-parametric
+
+## try to visualize data
+
+library(ggplot2)
+ggplot(upland_sites, aes(x=methane)) + 
+  geom_histogram() ##dont look normal
+
+## try log trans : 
+shapiro_test(log(upland_sites$methane)) # Yes still non significant. Gotta do non parametric now
+
+# since near and far samples are independent, Wilcoxon rank sum is the go to:
+
+near_far_upland <-  upland_sites %>%
+  wilcox_test(methane ~ proximity) %>%
+  add_significance()
+near_far_upland
+
+near_far_upland_eff <- upland_sites %>% wilcox_effsize(methane ~ proximity)
+near_far_upland_eff
+
+## OK, p is significant. Near and Far are different at upland sites! effect size is small
+
+```
+
+
+## Testing upland vs valley sites
+
+```{r message=F, warning=F, echo=F}
+
+## data for this test are similar for data used for near vs far test
+
+# since upland and valley samples are independent, Wilcoxon rank sum is the go to:
+
+upland_valley <-  pafrack %>%
+  wilcox_test(methane ~ location) %>%
+  add_significance()
+upland_valley
+
+upland_valley_eff <- pafrack %>% wilcox_effsize(methane ~ location)
+upland_valley_eff
+
+## OK, p is significant. valley and upland are different ! effect size is small
+
+```
+
+
+Professional Report Format (1-2 pages, knitted PDF from your .rmd)
+  hint - https://rmarkdown.rstudio.com/lesson-3.html 
+
+Your report should be structured with the following sections:
+1. Introduction (5 points)
+  a. Broad questions
+  b. Data source
+  c. Variables in the data set
+2. Data Description (10 points)
+  a. Descriptive statistics
+  b. Discuss distributions of data
+  c. Discuss censored observations
+  d. Refer to figures
+  e. Include all relevant figures
+3. Statistical Analysis and Discussion (15 points)
+  a. Comparison of means results
+  b. Discussion of assumptions
+  c. Discussion of transformations/non-parametric results
+  d. Discuss which tests are most appropriate in this context.
+  e. Include all relevant figures
+4. Conclusion (5 points)
+  a. Scope of inference (to what population can you infer?)
+  b. Weaknesses of study/analysis
+  c. Real-world implications/Comparison to Molofsky et al (2013) article
+5. Professional writing (5 points)
+  a. Clearly structured professional report
+  b. Clearly labelled and professional tables and graphics
+  c. Concise writing
+
+Reference:
+Molofsky, L.J., Connor, J.A., Wylie, A.S., Wagner, T. and S.K. Farhat. (2013).
+Evaluation of Methane Sources in Groundwater in Northeastern
+Pennsylvania. Groundwater, 51(3): 333-349

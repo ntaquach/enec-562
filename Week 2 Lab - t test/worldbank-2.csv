@@ -1,0 +1,161 @@
+Country,Region,urban,urban_growth,pm25
+Cote d Ivoire,African,54.869,3.774025107,23.53443788
+Lesotho,African,27.84,3.247536073,24.70117006
+Liberia,African,50.1,3.305927722,7.851815034
+Algeria,African,71.304,2.637964095,35.56453306
+Angola,African,44.819,5.098251496,36.39542768
+Benin,African,44.395,3.770961027,35.16237337
+Botswana,African,57.71,2.303663536,17.5393912
+Burkina Faso,African,30.688,5.654151508,40.03947692
+Burundi,African,12.359,5.609274897,45.53410622
+Cameroon,African,54.938,3.632635989,66.42837013
+Cape Verde,African,66.187,2.243282671,39.55602953
+Central African Republic,African,40.332,1.795799949,46.46839936
+Chad,African,22.618,3.766139312,46.05858564
+Djibouti,African,77.43,1.70820042,51.50224365
+Egypt,African,43.222,2.218280629,104.6666533
+Ethiopia,African,19.922,4.786533988,35.73814656
+Gabon,African,87.366,2.77849466,39.86049558
+Gambia,African,60.224,4.021492946,60.94814767
+Ghana,African,54.682,3.41404533,22.98826426
+Guinea,African,37.651,3.796177552,22.63592379
+Guinea-Bissau,African,50.094,4.052170993,32.98647968
+Kenya,African,26.055,4.23675858,16.29880428
+Libya,African,78.754,1.184934295,79.20020559
+Madagascar,African,35.741,4.484352478,19.67682043
+Malawi,African,16.454,4.017115507,25.72702911
+Mali,African,40.683,4.87528126,44.0063041
+Mauritania,African,60.446,3.77392776,85.08515449
+Mauritius,African,39.548,-0.241863223,14.95404587
+Morocco,African,60.685,2.161954745,22.99104134
+Mozambique,African,32.508,3.789714313,19.53856529
+Namibia,African,47.625,4.255007914,21.44459626
+Niger,African,19.01,5.299270324,62.74462018
+Nigeria,African,48.597,4.322871078,37.95728931
+Rwanda,African,29.775,5.737075847,49.71362154
+Senegal,African,44.065,3.644334493,37.57020675
+Sierra Leone,African,40.318,3.11242846,19.29960911
+South Africa,African,65.295,2.376645257,29.6286252
+Sudan,African,19.03,4.086257881,32.43740893
+Swaziland,African,21.315,1.842346623,21.60860671
+Togo,African,40.463,3.764742028,32.67724465
+Tunisia,African,67.047,1.449145304,44.79266297
+Uganda,African,16.444,5.398794171,60.30064052
+United Republic of Tanzania,African,32.316,5.307671355,23.3161196
+Zambia,African,41.379,4.113383832,26.74664908
+Zimbabwe,African,32.277,2.029803357,22.86952366
+Comoros,African,28.412,2.720188525,17.07934151
+Congo,African,65.798,3.209660046,53.0089847
+Afghanistan,Asia Pacific,27.132,4.282960067,48.01676483
+Bangladesh,Asia Pacific,35.035,3.267463256,89.3929096
+Cambodia,Asia Pacific,20.945,2.63038193,29.03890178
+China,Asia Pacific,56.778,2.612874387,58.37659937
+Cyprus,Asia Pacific,66.84,0.663096419,18.28597332
+Fiji,Asia Pacific,54.099,1.426355594,7.870697243
+India,Asia Pacific,33.136,2.329109667,74.32984681
+Indonesia,Asia Pacific,54.466,2.475676863,15.40820407
+Iran,Asia Pacific,73.879,1.833323286,42.98979197
+Iraq,Asia Pacific,69.592,3.139184022,51.99596281
+Japan,Asia Pacific,93.928,0.343564293,13.33416293
+Jordan,Asia Pacific,83.905,3.45557866,38.79814209
+Kuwait,Asia Pacific,98.358,2.940473391,67.43349003
+Lao People's DemNARep.,Asia Pacific,39.654,4.06411622,32.56943026
+Lebanon,Asia Pacific,87.914,2.756448566,32.60158923
+Malaysia,Asia Pacific,75.37,2.385554036,15.55640978
+Maldives,Asia Pacific,46.54,4.196434615,29.05613639
+Mongolia,Asia Pacific,72.823,2.763912767,23.59317989
+Myanmar,Asia Pacific,34.65,2.520636329,54.38812189
+Nepal,Asia Pacific,18.995,3.153685951,74.99780697
+Oman,Asia Pacific,78.088,5.79180675,53.28119972
+Pakistan,Asia Pacific,39.224,3.193724168,64.95375677
+Philippines,Asia Pacific,44.289,1.375013106,23.48713422
+Republic of Korea,Asia Pacific,82.592,0.594291337,28.66424214
+Saudi Arabia,Asia Pacific,83.331,2.492920855,106.1617369
+Sri Lanka,Asia Pacific,18.407,1.401506939,27.92362221
+Syrian Arab Republic,Asia Pacific,58.061,-0.938854297,41.56628282
+Thailand,Asia Pacific,51.54,2.587770039,26.35272294
+Turkey,Asia Pacific,73.887,2.238395514,36.40911573
+United Arab Emirates,Asia Pacific,85.804,1.558749835,64.29012818
+Viet Nam,Asia Pacific,34.236,2.967295039,28.2516555
+Yemen,Asia Pacific,35.187,4.116459274,52.8289507
+Armenia,Eastern European,62.558,0.085624168,25.50768535
+Azerbaijan,Eastern European,54.895,1.665784788,30.3540129
+Belarus,Eastern European,77.046,0.677415185,20.48379252
+Bosnia and Herzegovina,Eastern European,39.94,-0.108867286,47.40090583
+Bulgaria,Eastern European,74.266,-0.272281648,28.12871472
+Croatia,Eastern European,59.284,-0.246974947,21.78040386
+Czech Republic,Eastern European,72.98,0.13113365,21.40898739
+Estonia,Eastern European,67.468,-0.022177155,9.404689495
+Georgia,Eastern European,53.826,0.403420103,20.4763228
+Hungary,Eastern European,71.672,0.367792228,23.05838255
+Kazakhstan,Eastern European,53.229,1.39743627,19.66999774
+Kyrgyzstan,Eastern European,35.85,2.489543985,16.92166624
+Latvia,Eastern European,67.361,-0.899797934,20.41799195
+Lithuania,Eastern European,66.512,-1.123001709,19.06499459
+Macedonia,Eastern European,57.204,0.266201315,40.4789043
+Poland,Eastern European,60.531,-0.114343139,24.28187517
+Republic of Moldova,Eastern European,45.089,0.149340866,20.5543623
+Romania,Eastern European,54.749,-0.219105376,19.57866345
+Russian Federatoin,Eastern European,74.101,0.295827456,16.63374961
+Serbia,Eastern European,55.668,-0.329792185,21.43664968
+Slovakia,Eastern European,53.468,-0.152504441,20.52367065
+Slovenia,Eastern European,49.627,0.017372091,20.3499567
+Tajikistan,Eastern European,26.891,2.562049202,50.02908375
+Turkmenistan,Eastern European,50.396,2.447448946,31.29449247
+Ukraine,Eastern European,69.915,-0.016216706,18.87843558
+Uzbekistan,Eastern European,36.479,2.052790048,39.67064264
+Albania,Eastern European,58.376,1.514006568,17.93662454
+Antigua and Barbuda,Latin American and Caribbean,23.393,-0.578390146,13.88760103
+Argentina,Latin American and Caribbean,91.893,1.139388252,13.44396548
+Bahamas,Latin American and Caribbean,82.951,1.222425351,13.71948341
+Barbados,Latin American and Caribbean,31.415,0.082687112,15.38938638
+Belize,Latin American and Caribbean,43.845,1.819537719,27.04048536
+Bolivia,Latin American and Caribbean,68.911,2.090730993,27.97140377
+Brazil,Latin American and Caribbean,85.933,1.104235786,11.36829449
+Chile,Latin American and Caribbean,89.697,1.01093723,20.94195715
+Colombia,Latin American and Caribbean,76.708,1.232008745,17.99813938
+Costa Rica,Latin American and Caribbean,77.675,2.128248284,20.11774831
+Cuba,Latin American and Caribbean,77.184,0.269486941,17.98569778
+Dominica,Latin American and Caribbean,69.82,0.923468763,13.55936883
+Dominican Republic,Latin American and Caribbean,79.841,2.221299129,20.41796867
+Ecuador,Latin American and Caribbean,63.976,1.846349617,12.84155358
+El Salvador,Latin American and Caribbean,67.189,1.200979294,37.0047886
+Guatemala,Latin American and Caribbean,52.03,2.896471776,34.84767569
+Guyana,Latin American and Caribbean,28.661,0.998489262,17.3922441
+Haiti,Latin American and Caribbean,59.794,3.204536379,25.837657
+Honduras,Latin American and Caribbean,55.315,2.74566058,37.59004958
+Jamaica,Latin American and Caribbean,55.03,0.768264209,16.99207352
+Mexico,Latin American and Caribbean,79.517,1.64312093,20.23982419
+Nicaragua,Latin American and Caribbean,59.107,1.66658573,27.3819724
+Panama,Latin American and Caribbean,66.895,2.075095247,13.19621425
+Paraguay,Latin American and Caribbean,59.924,1.721324118,14.853318
+Peru,Latin American and Caribbean,78.924,1.657781535,27.8233501
+Saint Lucia,Latin American and Caribbean,18.54,0.650517539,14.00929929
+Saint Vincent/Grenadines,Latin American and Caribbean,50.899,0.858405264,14.25163381
+Suriname,Latin American and Caribbean,66.015,0.886155218,18.47176015
+Trinidad and Tobago,Latin American and Caribbean,8.352,-0.749800334,14.19016577
+Uruguay,Latin American and Caribbean,95.46,0.518459084,11.48844431
+Venezuela,Latin American and Caribbean,89.043,1.376597189,23.75584614
+Australia,Western Europe and Others (WEOG),89.554,1.556450202,5.897734951
+Austria,Western Europe and Others (WEOG),66.032,1.410967561,17.01299421
+Belgium,Western Europe and Others (WEOG),97.897,0.693736606,15.63662972
+Canada,Western Europe and Others (WEOG),82.006,1.431183937,7.178847511
+Denmark,Western Europe and Others (WEOG),87.847,1.029470445,11.02259277
+Finland,Western Europe and Others (WEOG),84.358,0.446183523,7.379235597
+France,Western Europe and Others (WEOG),79.75,0.696308865,12.36533737
+Germany,Western Europe and Others (WEOG),75.51,1.471035055,14.0153719
+Greece,Western Europe and Others (WEOG),78.329,-0.275605998,13.48711001
+Iceland,Western Europe and Others (WEOG),94.23,1.132542418,7.78903328
+Ireland,Western Europe and Others (WEOG),63.535,2.501155795,9.799825902
+Israel,Western Europe and Others (WEOG),92.205,2.043747065,21.09447276
+Italy,Western Europe and Others (WEOG),69.116,0.005885377,19.86123293
+Luxembourg,Western Europe and Others (WEOG),90.432,2.620957369,16.58784625
+Netherlands,Western Europe and Others (WEOG),91.032,1.052785082,14.63752206
+New Zealand,Western Europe and Others (WEOG),86.322,2.132715981,5.546610811
+Norway,Western Europe and Others (WEOG),80.734,1.174392954,9.07633792
+Portugal,Western Europe and Others (WEOG),64.017,0.537670531,9.760644322
+Spain,Western Europe and Others (WEOG),79.802,0.271783712,9.738283342
+Sweden,Western Europe and Others (WEOG),85.964,1.228560689,6.241379908
+Switzerland,Western Europe and Others (WEOG),73.99,1.182683765,12.89019363
+United Kingdom,Western Europe and Others (WEOG),82.835,1.07132712,12.41225066
+United States of America,Western Europe and Others (WEOG),81.788,0.902097108,8.441199408

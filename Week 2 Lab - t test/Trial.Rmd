@@ -1,0 +1,122 @@
+---
+title: "Week_2_lab"
+author: "Nguyen Tien Anh Quach"
+date: "`r format(Sys.Date())`"
+output:
+  pdf_document: default
+  html_document: default
+chunk_output_type: inline
+---
+
+This lab has a lot of information in it. You can refer to these sections to help you with your problem set (and future problem sets) 
+
+In this lab we will work on the following:
+
+1. A bit more about R Notebooks
+2. More on installing Packages and Loading libraries
+3. Working directories
+4. Importing data
+5. Summary statistics
+6. Inline R code
+7. Piping in R
+8. Making a histogram (you will upload to canvas)
+9. Bonus: A scatter plot 
+10. Bonus: A boxplot 
+11. Bonus: Piping with ggplot 
+12: T tests in R 
+13: Non-parametric tests in R 
+14: Log example
+
+
+
+To turn in today (5 points): a .png file of the histogram on pm2.5 data. The histogram should be uploaded by 12pm Friday (noon), EDT for full credit. 
+
+#1 A bit about R Markdown and Notebooks
+
+R markdown is a simple and easy to use plain text language used to combine your R code, results from your data analysis (including plots and tables) and written commentary into a single nicely formatted and reproducible document (like a report, publication, thesis chapter or a web page like this one).
+
+Technically, R markdown is a variant of another language (yet another language!) called Markdown and both are a type of ‘markup’ language. A markup language simply provides a way of creating an easy to read plain text file which can incorporate formatted text, images, headers and links to other documents. 
+
+At the top of the R Markdown document between the dashed lines, you see what is called the YAML header and you can change for the markdown in the header. The first line of the YAML header is the title of the document. Please go ahead and change this as well as the author name. You can select what kind of output you want when you knit the document. I would like you to submit your reports as a PDF, so you will want to set that as an option. 
+
+If you go to the gear pull down menu above, you can play around with the options. At the bottom of the pull down menu options is Output Options. Make sure that PDF is selected. You can also decide if you want to see the output from the chunks inline (below the chunk) or in the console. Please select Chunk Output Inline. This will allow us to see the output in the document we knit.   
+
+An R Notebook is an R Markdown document with chunks that can be executed independently and interactively, with output visible immediately beneath the input.
+
+#2 Install and load the libraries. 
+
+If you haven't installed the packages, you will need to do that first.Remember to install a packages, you'll need to type install.packages("NameOfPackage") in the console. I typically do this in the console because once you do it, you don't need to repeat it, so therefore I don't need that command stored in my rmarkdown. However, you will need to load the packages each time, so I always start my Rmd with an R chunk that i call library. See how I named the chunk below library? That is the name following r in the curly brackets. You can name your chunks whatever (or not name them at all).  
+
+```{r library}
+library(ggplot2) #a data visualiztion package
+library(ggthemes) #a package of themes for visualizations. themes are settings to make are visualizations consistent and attractive
+library(RColorBrewer) # I like color, RColorBrewer is a package of colors and color combinations.
+library(moments) #allows us to calculate skewness and kurtosis
+
+library(kableExtra) #this is for making data tables in R
+```
+
+
+#3 The working directory
+
+Remember, to figure out the current working directory (where R will read and store files), you should use the function getwd(). You don't need to put anything in the brackets (no arguments). The working directory is where R is storing and reading files. It makes things smoother if all files are stored in one place. Please download the worldbank.csv file and place it in a suitable folder (remember, mine is called Data). 
+ 
+If you would like to change the working directory, use the function setwd(). You'll need to change the pathname to the appropriate path on your machine. 
+```{r setwd}
+getwd() # tells you the current working directory
+#setwd("~/Documents/Classes/BIO562_2023/Labs/BIOL653_2023")
+# if you want to change the directory, use setwd(). You need to remove the # in the line above and change the pathname. 
+```
+
+
+#4 Importing data
+
+Now we are ready to load the data. First, please open the data in excel. I always do this to make sure I'm happy with how it looks. Make sure there aren't any missing values, columns are aligned, and overall looks clean. Once you do that, make sure the file is saved in your working directory as a .csv. You can now read in the .csv data file. Name the dataframe a name that makes sense to you. Once I read in the data, i always like to check out the first few lines to make sure it looks good. The function for this is head(). You can also look at the structure of the data frame with the str() function. The structure tells us about the variables and number of observations. 
+
+In the dataframe you should see five variables: (1) country; (2) UN regional group; (3) Urban; (4) Urban growth and (5) PM 2.5. The three numeric variables were all downloaded from World Bank websites. It's always good to check out the source of the data and make sure you understand the units of measurement. We call the data about the data, metadata.
+
+**Metadata**
+urban: % of total population that lives in urban area, source World Bank (2015)
+urban_growth: Annual % change in urban population (%), source World Bank (2015)
+pm25: Particulate Matter 2.5,PM2.5 air pollution, mean annual exposure (micrograms per cubic meter), source World Bank
+
+```{r readcsv}
+worldbank.df<-read.csv("worldbank-2.csv")
+head(worldbank.df)
+str(worldbank.df)
+```
+You should see that the data frame has 162 observations with five variables. Country and Region are factor variables. urban, urban growth and pm2.5 are numeric. 
+
+
+#5 Summary statistics
+
+We can run summary statistics on several measures of central tendency and spread. Ill do it for the first (urban) and you could run the same for urban_growth and pm25. This time I'm going to assign objects to each of the summary statistics so i can then insert them in text. You can see that I used the argument na.rm=TRUE. This tells R to remove any missing values (NA) from the analysis (rm=remove).  
+
+```{r}
+length.urban<-length(worldbank.df$urban)
+mean.urban<-mean(worldbank.df$urban, na.rm=TRUE)
+median.urban<-median(worldbank.df$urban, na.rm=TRUE)
+sd.urban<-sd(worldbank.df$urban, na.rm=TRUE)
+IQR.urban<-IQR(worldbank.df$urban, na.rm=TRUE)
+range.urban<-range(worldbank.df$urban, na.rm=TRUE)
+skewness.urban<-skewness(worldbank.df$urban, na.rm=TRUE) #skewness is in the packages 'moments'.
+
+#If we want to see the output, we can call those objects:
+length.urban
+mean.urban
+median.urban
+sd.urban
+IQR.urban
+range.urban
+skewness.urban
+
+
+```
+
+
+#6 Inline Coding 
+We can discuss the summary statistics in a paragraph using inline R
+
+R Notebook allows us to use inline R code as we report our results. To use R inline, you need to put a mark (`) followed by the letter r, then the code you want, then close with a mark (`). For example: 
+
+Across 162 nations, the average percent of the population that lives in urban areas is `r mean.urban`%. 
