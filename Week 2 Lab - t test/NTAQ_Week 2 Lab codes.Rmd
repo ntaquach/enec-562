@@ -172,7 +172,7 @@ shapiro_test(log(pafrack$methane)) # Yes still non significant. Gotta do non par
 # since near and far samples are independent, Wilcoxon rank sum is the go to:
 
 near_far_all <- pafrack %>% 
-  wilcox_test(methane ~ proximity) %>%
+  wilcox_test(methane ~ proximity, alternative = "less") %>%
   add_significance()
 near_far_all
 
@@ -208,7 +208,7 @@ shapiro_test(log(valley_sites$methane)) # Yes still non significant. Gotta do no
 # since near and far samples are independent, Wilcoxon rank sum is the go to:
 
 near_far_valley <-  valley_sites %>%
-  wilcox_test(methane ~ proximity) %>%
+  wilcox_test(methane ~ proximity, alternative = "less") %>%
   add_significance()
 near_far_valley
 
@@ -244,10 +244,7 @@ shapiro_test(log(upland_sites$methane)) # Yes still non significant. Gotta do no
 
 # since near and far samples are independent, Wilcoxon rank sum is the go to:
 
-near_far_upland <-  upland_sites %>%
-  wilcox_test(methane ~ proximity, alternative = "two.sided") %>%
-  add_significance()
-near_far_upland
+# you are expecting far is less than near, so it has to be a one sided test?!
 
 near_far_upland <-  upland_sites %>%
   wilcox_test(methane ~ proximity, alternative = "less") %>%
