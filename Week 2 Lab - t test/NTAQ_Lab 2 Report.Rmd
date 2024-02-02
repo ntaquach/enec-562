@@ -311,9 +311,6 @@ Table 4. Summary statistics of methane concentration at far and near wells in th
 ```
 
 \pagebreak
-\begin{center}
-Figure 1. The distribution of methane concentration at near and far wells for all observations.
-\end{center}
 ```{r message=F,warning=F,echo=F, fig.align='center'}
 near_far_hist + theme(axis.text.y = element_text(colour = "black", size = 10, face = "bold"), 
         axis.text.x = element_text(colour = "black", face = "bold", size = 10), 
@@ -332,11 +329,11 @@ near_far_hist + theme(axis.text.y = element_text(colour = "black", size = 10, fa
 )
 
 ```
+\begin{center}
+Figure 1. The distribution of methane concentration at near and far wells for all observations.
+\end{center}
 
 \pagebreak
-\begin{center}
-Figure 2. The distribution of methane concentration at far and near wells in the valley.
-\end{center}
 ```{r message=F,warning=F,echo=F, fig.align='center'}
 near_far_valley_hist + theme(axis.text.y = element_text(colour = "black", size = 10, face = "bold"), 
         axis.text.x = element_text(colour = "black", face = "bold", size = 10), 
@@ -355,11 +352,11 @@ near_far_valley_hist + theme(axis.text.y = element_text(colour = "black", size =
 )
 
 ```
+\begin{center}
+Figure 2. The distribution of methane concentration at far and near wells in the valley.
+\end{center}
 
 \pagebreak
-\begin{center}
-Figure 3. The distribution of methane concentration at far and near wells in the upland.
-\end{center}
 ```{r message=F,warning=F,echo=F, fig.align='center'}
 upland_hist + theme(axis.text.y = element_text(colour = "black", size = 10, face = "bold"), 
         axis.text.x = element_text(colour = "black", face = "bold", size = 10), 
@@ -378,3 +375,6 @@ upland_hist + theme(axis.text.y = element_text(colour = "black", size = 10, face
 )
 
 ```
+\begin{center}
+Figure 3. The distribution of methane concentration at far and near wells in the upland.
+\end{center}
