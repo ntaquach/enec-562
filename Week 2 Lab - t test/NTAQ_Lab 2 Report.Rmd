@@ -1,0 +1,380 @@
+---
+title: "Week 2 Lab Report"
+author: "Nguyen Tien Anh Quach"
+date: "`r Sys.Date()`"
+output:
+  pdf_document: default
+  html_document: default
+chunk_output_type: inline
+indent: true
+header-includes:
+   - \setlength\parindent{24pt}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{css, echo=FALSE}
+h1, h4 {
+  text-align: center;
+  color: black;
+  font-weight: bold;
+}
+```
+
+```{r message=F, warning=F, echo=F, results=F}
+getwd()
+library(readxl)
+library(dplyr)
+library(rstatix)
+#library(coin)
+library(kableExtra)
+library(moments)
+
+pafrack <- read_excel("PAFracking.xlsx", sheet = "Data")
+
+``` 
+
+# Introduction
+
+\hspace{\parindent} The objective of this document is to answer whether or not shale-gas extraction negatively impacts the groundwater resources in PA. Data analyses utilized methane data from [Molofsky et al. (2013)](https://doi.org/10.1111/gwat.12056 "Molofsky et al. (2013)"). Data were collected from 1701 drinking water wells in Susquenhanna County, PA to examine the prevalence and distribution of methane in groundwater. In the dataset, variables collected include (1) methane concentration, (2)  proximity of a well from a fracking site, which is classified into near (<1 km) and far (>1 km), (3) location of a well, which is divided into valley and upland categories, and (4) whether or not a concentration value is above detection limit. 
+  
+# Results
+## Summary statistics of methane data
+\hspace{\parindent} The total number of wells is 1701; however, they are predominantly far wells (Table 1). Although the number of upland and valley wells is relatively equal, far wells in each location category still dominate numerically (Table 2). Methane concentrations varied widely among all wells (0.05, 4.3 x 10^4), wells in upland (0.05, 3.2 x 10^4) and valley (0.08, 4.3 x 10^4), and wells near (0.08, 4.3 x 10^4) to and far (0.05, 3.9 x 10^4) from fracking sites. Far wells in the valley have relatively similar methane concentration (Table 3), whereas far wells in the upland have higher methane concentration, standard deviation, and as a result, skewness (Table 4).
+
+\hspace{\parindent} The methane data collected are highly right-skewed for all wells, well locations, and well proximities (Fig. 1, 2, & 3). The authors did not give any explanation about the censored observations and how they play a role in the analyses. Therefore, the analyses in this lab did not take into account of the censored observation. 
+  
+## Statistical tests
+### Near vs. Far wells for all observations
+```{r message=F, warning=F, echo=F, results=F}
+## identifying outliers
+
+library(rstatix)
+pafrack %>% group_by(proximity) %>%
+  identify_outliers(methane)
+
+## test for normality
+near_far_shapiro <- pafrack %>% shapiro_test(methane) ## Okay so p-value is significant => either log transform data or non-parametric
+near_far_shapiro_p <- near_far_shapiro$p
+
+## try to visualize data
+
+library(ggplot2)
+near_far_hist <- ggplot(pafrack, aes(x=methane)) + 
+  geom_histogram(position="identity", alpha=0.5, color="black", fill="#56a0d3") ##still dont look normal
+
+## verify this: 
+near_far_shapiro_log <- shapiro_test(log(pafrack$methane)) # Yes still non significant. Gotta do non parametric now
+near_far_shapiro_log_p <- near_far_shapiro_log$p.value
+
+# since near and far samples are independent, Wilcoxon rank sum is the go to:
+
+near_far_all <- pafrack %>% 
+  wilcox_test(methane ~ proximity, alternative = "less") %>%
+  add_significance()
+near_far_all_p <- near_far_all$p
+
+near_far_all_eff <- pafrack %>% wilcox_effsize(methane ~ proximity)
+near_far_all_eff_size <- near_far_all_eff$effsize
+
+## OK, p is significant. Near and Far are different!
+
+```
+\hspace{\parindent} Due to the nature of the data, I expected non-parametric tests are needed to test for the mean difference in methane concentrations (Fig. 1). Indeed, a Shapiro-Wilk normality test yielded a p-value of `r round(near_far_shapiro_p, 2)`, which indicated that the methane data are highly non-normal. Log-transforming did not help generate a normal distribution, as the p-value of the Shapiro-Wilk test of the logged data returned a p-value of `r round(near_far_shapiro_log_p, 2)`. Outliers cannot be removed because it is unknown how a well would have a distinctively high methane concentration, which could be due to (1) equipment error, (2) data entry error, or (3) methane is naturally concentrated in that well. 
+
+\hspace{\parindent} My hypothesis is that far wells would have lower mean methane concentration, as they are far away from fracking sites. Therefore, a one-sided Wilcoxon rank-sum test was conducted. Results showed that the measured mean concentration of methane at far wells was statistically and significantly lower than that at near wells (W = `r near_far_all$statistic`, p = `r near_far_all$p`, d = `r near_far_all_eff$effsize`).
+
+\hspace{\parindent} Interestingly, the authors instead conducted a two-sided Mann-Whitney U-test. Their hypothesis was far wells could have higher or lower concentrations of methane. However, that would not answer their question, as they were asking if fracking has any impacts on methane concentration. In addition, their test result was non-significant (p = 0.503). My analysis result has shown that the test was likely done incorrectly to generate the results they were expecting.
+
+### Upland vs. Valley wells
+```{r message=F, warning=F, echo=F, results=F}
+## data for this test are similar for data used for near vs far test
+
+# since upland and valley samples are independent, Wilcoxon rank sum is the go to:
+
+upland_valley <-  pafrack %>%
+  wilcox_test(methane ~ location, alternative = "less") %>%
+  add_significance()
+upland_valley
+
+upland_valley_eff <- pafrack %>% wilcox_effsize(methane ~ location)
+upland_valley_eff
+
+## OK, p is significant. valley and upland are different ! effect size is small
+
+```
+\hspace{\parindent} As data for this analysis are similar to those used to compare near vs. far wells, it was not necessary to test for the normality of the original and transformed data. My hypothesis was that the mean concentration of methane in upland wells is less than that in valley wells. A one-sided Wilcoxon rank-sum test was conducted. Results showed that the measured mean concentration of methane at upland wells was statistically and significantly lower than that at valley wells (W = `r upland_valley$statistic`, p = `r upland_valley$p`, d = `r upland_valley_eff$effsize`). This was the only test that the results of my analysis and the authors' analysis were similar.
+
+### Near vs. Far wells for valley
+```{r message=F, warning=F, echo=F, results=F}
+## identifying outliers
+
+valley_sites <- pafrack %>% group_by(proximity) %>%
+  filter(location == "Valley") %>% ungroup() #if you dont ungroup, test wont go thru
+
+valley_sites %>% identify_outliers(methane)
+
+## test for normality
+valley <- valley_sites %>% shapiro_test(methane) ## Okay so p-value is significant => either log transform data or non-parametric
+valley$p
+## try to visualize data
+
+library(ggplot2)
+near_far_valley_hist <- ggplot(valley_sites, aes(x=methane)) + 
+  geom_histogram(position="identity", alpha=0.5, color="black", fill="#56a0d3") ##dont look normal
+
+## try log trans : 
+valley_log <- shapiro_test(log(valley_sites$methane)) # Yes still non significant. Gotta do non parametric now
+valley_log$p.value
+# since near and far samples are independent, Wilcoxon rank sum is the go to:
+
+near_far_valley <-  valley_sites %>%
+  wilcox_test(methane ~ proximity, alternative = "less") %>%
+  add_significance()
+near_far_valley$p
+near_far_valley$statistic
+
+near_far_valley_eff <- valley_sites %>% wilcox_effsize(methane ~ proximity)
+near_far_valley_eff$effsize
+
+## OK, p is significant. Near and Far are different at valley sites! effect size is small
+
+```
+\hspace{\parindent} Methane data collected from valley wells are highly right-skewed (Fig. 2). Indeed, a Shapiro-Wilk normality test of methane data yielded a p-value of `r round(valley$p, 2)`, which indicated that the methane data are highly non-normal. Log-transforming did not help generate a normal distribution, as the p-value of the Shapiro-Wilk test of the logged data returned a p-value of `r round(valley_log$p.value, 2)`. Outliers were not removed due to similar reasons (see section above). Therefore, a one-sided Wilcoxon rank-sum test was conducted. Results showed that the measured mean concentration of methane at far wells was statistically and significantly lower than that at near wells (W = `r near_far_valley$statistic`, p = `r near_far_valley$p`, d = `r near_far_valley_eff$effsize`).
+
+\hspace{\parindent} Interestingly, the authors also conducted a one-sided Mann-Whitney U-test. They also obtained a statistically significant p-value of 0.007. However, my p-value is about 10 times smaller,which demonstrated that that the test was likely done incorrectly or data were not cherrypicked to generate the results they were expecting.
+
+### Near vs. Far wells for upland
+
+```{r message=F, warning=F, echo=F, results =F}
+## identifying outliers
+
+upland_sites <- pafrack %>% group_by(proximity) %>%
+  filter(location == "Upland") %>% ungroup() #if you dont ungroup, test wont go thru
+
+upland_sites %>% identify_outliers(methane)
+
+## test for normality
+upland <- upland_sites %>% shapiro_test(methane) ## Okay so p-value is significant => either log transform data or non-parametric
+
+## try to visualize data
+
+library(ggplot2)
+upland_hist <- ggplot(upland_sites, aes(x=methane)) + 
+  geom_histogram(position="identity", alpha=0.5, color="black", fill="#56a0d3") ##dont look normal
+
+## try log trans : 
+upland_log <- shapiro_test(log(upland_sites$methane)) # Yes still non significant. Gotta do non parametric now
+
+# since near and far samples are independent, Wilcoxon rank sum is the go to:
+
+# you are expecting far is less than near, so it has to be a one sided test?!
+
+near_far_upland <-  upland_sites %>%
+  wilcox_test(methane ~ proximity, alternative = "less") %>%
+  add_significance()
+near_far_upland
+
+near_far_upland_eff <- upland_sites %>% wilcox_effsize(methane ~ proximity)
+near_far_upland_eff
+
+## OK, p is significant. Near and Far are different at upland sites! effect size is small
+
+```
+\hspace{\parindent} Methane data collected from upland wells are also highly right-skewed (Fig. 3). A Shapiro-Wilk normality test of methane data yielded a p-value of `r round(upland$p, 2)`, which indicated that the methane data are highly non-normal. Log-transforming did not help generate a normal distribution because the p-value of the Shapiro-Wilk test of the log-transformed data returned a p-value of `r round(upland_log$p.value, 2)`. Therefore, a one-sided Wilcoxon rank-sum test was performed. The test indicated that the measured mean concentration of methane at far wells was statistically and significantly lower than that at near wells (W = `r near_far_upland$statistic`, p = `r near_far_upland$p`, d = `r near_far_upland_eff$effsize`).
+
+\hspace{\parindent} Interestingly, the authors again conducted a two-sided Mann-Whitney U-test, which had an insignificant result (p = 0.154). However, my analysis demonstrated that there was actually a significant difference in mean values of methane concentration between far and near wells for upland observations.
+
+# Discussion
+
+
+\hspace{\parindent} In general, my results only aligned with the authors' results in the analysis of upland vs. valley wells, where we both found that mean methane concentration at upland wells was significantly lower than that at valley sites. For the other analyses, I found that far wells had significantly lower mean methane concentration. Meanwhile, Molofsky et al. (2013) found non-significant results for those analyses, showing that far and near wells had no significant difference in mean methane concentrations.
+
+\hspace{\parindent} What the authors were lacking was a clear alternative hypothesis. As a result, their test choice was not correct (i.e., one-sided instead of two-sided) and their results were ambiguous. Perhaps their ultimate goal was to be vague and to show readers that fracking indeed poses no harm to groundwater resources through their poor selection of statistical tests. My results seemed to be more intuititive, as wells near the fracking sites were shown to have higher mean methane concentration. In addition, our similar result from the upland vs. valley test may have shown that fracking is having a negative impacts on groundwater and perhaps surface water. Groundwater travels down the hydraulic gradient, carrying methane. As valley is within 1000 ft of a major NHD flowline and 500 ft of minor tributaries, the impact of fracking on the methane concentration at valley wells is quite apparent.
+
+\hspace{\parindent} Many limitations exist in this study. First, it is questionable why there is a censored variable. Second, there are so many categorical variables, which can be turned into continuous variables. For example, distance to the nearest stream could replace the location variable. Distance to fracking sites could replace the proximity variable. Third, there are many wells and many of them are far from the sites. Near wells are needed to further determine the impacts of fracking on groundwater. Fourth, more water chemistry could be collected, other than methane and metal concentrations. Last, this paper presented a huge conflict of interest. A big question could come up from the readers after reading toward the end and encountering the Acknowledgement section: Why would someone report that fracking is harmful when they are funded by a fracking company to do research and collect data?
+
+\pagebreak
+# Appendix
+
+\begin{center}
+Table 1. Summary statistics of methane concentration at near and far wells for all observations.
+\end{center}
+```{r message=F,warning=F, echo = F}
+
+### Near vs Far
+
+  ## ALL
+  library(dplyr)
+  pafrack %>%
+  group_by(proximity) %>%
+  summarise(
+    number_of_sites = length(methane),
+    mean_methane = mean(methane),
+    median_methane = median(methane),
+    sd_methane = sd(methane),
+    IQR_methane = IQR(methane),
+    skewness_methane = skewness(methane)
+  ) %>% 
+  ungroup() %>% data.frame() %>%
+  kable("latex", booktabs = T, escape = F,
+        col.names = linebreak(c("Proximity\nCategory", "Number\nof Sites", "Mean\nMethane\nConc.",
+                                "Median\nMethane\nConc.", "Standard\nDeviation of\nMethane Conc.", 
+                                "IQR of\nMethane\nConc.", "Skewness of\nMethane\nConc."
+        ), align = "c"))  %>%
+  column_spec(1:1, width = "1.5cm") %>%
+  kable_styling(position = "center") %>%
+  kable_styling(latex_options = "hold_position")
+      
+```
+
+\begin{center}
+Table 2. Summary statistics of methane concentration at upland and valley wells.
+\end{center}
+```{r warning=F, message=F, echo=F}
+  ## Only valley sites
+  pafrack %>%
+  group_by(location) %>%
+  summarise(
+    number_of_sites = length(methane),
+    mean_methane = mean(methane),
+    median_methane = median(methane),
+    sd_methane = sd(methane),
+    IQR_methane = IQR(methane),
+    skewness_methane = skewness(methane)
+  ) %>% 
+  ungroup() %>% data.frame() %>%
+  kable("latex", booktabs = T, escape = F,
+        col.names = linebreak(c("Location", "Number\nof Sites", "Mean\nMethane\nConc.",
+                                "Median\nMethane\nConc.", "Standard\nDeviation of\nMethane Conc.", 
+                                "IQR of\nMethane\nConc.", "Skewness of\nMethane\nConc."
+        ), align = "c"))  %>%
+  column_spec(1:1, width = "1.5cm") %>%
+  kable_styling(position = "center") %>%
+  kable_styling(latex_options = "HOLD_position")
+```
+
+\begin{center}
+Table 3. Summary statistics of methane concentration at far and near wells in the valley.
+\end{center}
+```{r warning=F, message=F, echo=F}
+  ## Only valley sites
+  pafrack %>%
+  group_by(proximity) %>%
+  filter(location == "Valley") %>%
+  summarise(
+    number_of_sites = length(methane),
+    mean_methane = mean(methane),
+    median_methane = median(methane),
+    sd_methane = sd(methane),
+    IQR_methane = IQR(methane),
+    skewness_methane = skewness(methane)
+  ) %>% 
+  ungroup() %>% data.frame() %>%
+  kable("latex", booktabs = T, escape = F,
+        col.names = linebreak(c("Proximity\nCategory", "Number\nof Sites", "Mean\nMethane\nConc.",
+                                "Median\nMethane\nConc.", "Standard\nDeviation of\nMethane Conc.", 
+                                "IQR of\nMethane\nConc.", "Skewness of\nMethane\nConc."
+        ), align = "c"))  %>%
+  column_spec(1:1, width = "1.5cm") %>%
+  kable_styling(position = "center") %>%
+  kable_styling(latex_options = "HOLD_position")
+```
+
+\begin{center}
+Table 4. Summary statistics of methane concentration at far and near wells in the upland.
+\end{center}
+```{r warning=F, message=F, echo=F}
+  ## Only valley sites
+  pafrack %>%
+  group_by(proximity) %>%
+  filter(location == "Upland") %>%
+  summarise(
+    number_of_sites = length(methane),
+    mean_methane = mean(methane),
+    median_methane = median(methane),
+    sd_methane = sd(methane),
+    IQR_methane = IQR(methane),
+    skewness_methane = skewness(methane)
+  ) %>% 
+  ungroup() %>% data.frame() %>%
+  kable("latex", booktabs = T, escape = F,
+        col.names = linebreak(c("Proximity\nCategory", "Number\nof Sites", "Mean\nMethane\nConc.",
+                                "Median\nMethane\nConc.", "Standard\nDeviation of\nMethane Conc.", 
+                                "IQR of\nMethane\nConc.", "Skewness of\nMethane\nConc."
+        ), align = "c"))  %>%
+  column_spec(1:1, width = "1.5cm") %>%
+  kable_styling(position = "center") %>%
+  kable_styling(latex_options = "HOLD_position")
+```
+
+\pagebreak
+\begin{center}
+Figure 1. The distribution of methane concentration at near and far wells for all observations.
+\end{center}
+```{r message=F,warning=F,echo=F, fig.align='center'}
+near_far_hist + theme(axis.text.y = element_text(colour = "black", size = 10, face = "bold"), 
+        axis.text.x = element_text(colour = "black", face = "bold", size = 10), 
+        legend.text = element_text(size = 9, face ="bold", colour ="black"), 
+        legend.position = "right", axis.title.y = element_text(face = "bold", size = 7), 
+        axis.title.x = element_text(face = "bold", size = 12, colour = "black", margin = margin(t=5)), 
+        axis.title.y.left = element_text(face = "bold", size = 12, colour = "black",margin=margin(r=5)),
+        legend.title = element_text(size = 5, colour = "black", face = "bold"), 
+        panel.background = element_blank(), panel.border = element_rect(colour = "black", fill = NA, size = 1.2),
+        legend.key=element_blank(),
+        plot.title = element_text(color = "black", size = 18, face = "bold", hjust = 0.5)) +
+  labs(
+  title = "",
+  x = expression(bold("Methane concentration ("*mu*"g/L)")),
+  y = expression(bold("Frequency"))
+)
+
+```
+
+\pagebreak
+\begin{center}
+Figure 2. The distribution of methane concentration at far and near wells in the valley.
+\end{center}
+```{r message=F,warning=F,echo=F, fig.align='center'}
+near_far_valley_hist + theme(axis.text.y = element_text(colour = "black", size = 10, face = "bold"), 
+        axis.text.x = element_text(colour = "black", face = "bold", size = 10), 
+        legend.text = element_text(size = 9, face ="bold", colour ="black"), 
+        legend.position = "right", axis.title.y = element_text(face = "bold", size = 7), 
+        axis.title.x = element_text(face = "bold", size = 12, colour = "black", margin = margin(t=5)), 
+        axis.title.y.left = element_text(face = "bold", size = 12, colour = "black",margin=margin(r=5)),
+        legend.title = element_text(size = 5, colour = "black", face = "bold"), 
+        panel.background = element_blank(), panel.border = element_rect(colour = "black", fill = NA, size = 1.2),
+        legend.key=element_blank(),
+        plot.title = element_text(color = "black", size = 18, face = "bold", hjust = 0.5)) +
+  labs(
+  title = "",
+  x = expression(bold("Methane concentration ("*mu*"g/L)")),
+  y = expression(bold("Frequency"))
+)
+
+```
+
+\pagebreak
+\begin{center}
+Figure 3. The distribution of methane concentration at far and near wells in the upland.
+\end{center}
+```{r message=F,warning=F,echo=F, fig.align='center'}
+upland_hist + theme(axis.text.y = element_text(colour = "black", size = 10, face = "bold"), 
+        axis.text.x = element_text(colour = "black", face = "bold", size = 10), 
+        legend.text = element_text(size = 9, face ="bold", colour ="black"), 
+        legend.position = "right", axis.title.y = element_text(face = "bold", size = 7), 
+        axis.title.x = element_text(face = "bold", size = 12, colour = "black", margin = margin(t=5)), 
+        axis.title.y.left = element_text(face = "bold", size = 12, colour = "black",margin=margin(r=5)),
+        legend.title = element_text(size = 5, colour = "black", face = "bold"), 
+        panel.background = element_blank(), panel.border = element_rect(colour = "black", fill = NA, size = 1.2),
+        legend.key=element_blank(),
+        plot.title = element_text(color = "black", size = 18, face = "bold", hjust = 0.5)) +
+  labs(
+  title = "",
+  x = expression(bold("Methane concentration ("*mu*"g/L)")),
+  y = expression(bold("Frequency"))
+)
+
+```

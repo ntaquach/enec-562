@@ -28,6 +28,7 @@ library(dplyr)
 library(rstatix)
 #library(coin)
 library(kableExtra)
+library(moments)
 ```
 
 Load data: 
@@ -47,23 +48,34 @@ pafrack <- read_excel("PAFracking.xlsx", sheet = "Data")
   pafrack %>%
   group_by(proximity) %>%
   summarise(
+    number_of_sites = length(methane),
     mean_methane = mean(methane),
     median_methane = median(methane),
-    min_methane = min(methane),
-    max_methane = max(methane),
-    sd_methane = sd(methane)
+    sd_methane = sd(methane),
+    IQR_methane = IQR(methane),
+    skewness_methane = skewness(methane)
   ) %>% 
   ungroup() %>% data.frame() %>%
   kable("latex", booktabs = T, escape = F,
-        col.names = linebreak(c("Proximity\nCategory", "Mean\nMethane\nConc.",
-                                "Median\nMethane\nConc.", "Min\nMethane\nConc.",
-                                "Max\nMethane\nConc.", "Standard Deviation of\nMethane\nConc."
+        col.names = linebreak(c("Proximity\nCategory", "Number\nof Sites", "Mean\nMethane\nConc.",
+                                "Median\nMethane\nConc.", "Standard\nDeviation of\nMethane Conc.", 
+                                "IQR of\nMethane\nConc.", "Skewness of\nMethane\nConc."
         ), align = "c"))  %>%
   column_spec(1:1, width = "1.5cm") %>%
   kable_styling(position = "center") %>%
   kable_styling(latex_options = "hold_position")
-
+      
 ```
+
+Range for near sites can be reported here: `r round(min(pafrack$methane[pafrack$proximity == "Near"]), 2)`, `r round(max(pafrack$methane[pafrack$proximity == "Near"]), 2)`.
+
+Range for far sites: `r round(min(pafrack$methane[pafrack$proximity == "Far"]), 2)`, `r round(max(pafrack$methane[pafrack$proximity == "Far"]), 2)`.
+
+Range for upland sites: `r round(min(pafrack$methane[pafrack$location == "Upland"]), 2)`, `r round(max(pafrack$methane[pafrack$location == "Upland"]), 2)`.
+
+Range for valley sites: `r round(min(pafrack$methane[pafrack$location == "Valley"]), 2)`, `r round(max(pafrack$methane[pafrack$location == "Valley"]), 2)`.
+
+Range for all sites: `r round(min(pafrack$methane), 2)`, `r round(max(pafrack$methane), 2)`.
 
 
 Now with only valley sites:
@@ -73,17 +85,18 @@ Now with only valley sites:
   group_by(proximity) %>%
   filter(location == "Valley") %>%
   summarise(
+    number_of_sites = length(methane),
     mean_methane = mean(methane),
     median_methane = median(methane),
-    min_methane = min(methane),
-    max_methane = max(methane),
-    sd_methane = sd(methane)
+    sd_methane = sd(methane),
+    IQR_methane = IQR(methane),
+    skewness_methane = skewness(methane)
   ) %>% 
   ungroup() %>% data.frame() %>%
   kable("latex", booktabs = T, escape = F,
-        col.names = linebreak(c("Proximity\nCategory", "Mean\nMethane\nConc.",
-                                "Median\nMethane\nConc.", "Min\nMethane\nConc.",
-                                "Max\nMethane\nConc.", "Standard Deviation of\nMethane\nConc."
+        col.names = linebreak(c("Proximity\nCategory", "Number\nof Sites", "Mean\nMethane\nConc.",
+                                "Median\nMethane\nConc.", "Standard\nDeviation of\nMethane Conc.", 
+                                "IQR of\nMethane\nConc.", "Skewness of\nMethane\nConc."
         ), align = "c"))  %>%
   column_spec(1:1, width = "1.5cm") %>%
   kable_styling(position = "center") %>%
@@ -98,17 +111,18 @@ Now with only upland sites:
   group_by(proximity) %>%
   filter(location == "Upland") %>%
   summarise(
+    number_of_sites = length(methane),
     mean_methane = mean(methane),
     median_methane = median(methane),
-    min_methane = min(methane),
-    max_methane = max(methane),
-    sd_methane = sd(methane)
+    sd_methane = sd(methane),
+    IQR_methane = IQR(methane),
+    skewness_methane = skewness(methane)
   ) %>% 
   ungroup() %>% data.frame() %>%
   kable("latex", booktabs = T, escape = F,
-        col.names = linebreak(c("Proximity\nCategory", "Mean\nMethane\nConc.",
-                                "Median\nMethane\nConc.", "Min\nMethane\nConc.",
-                                "Max\nMethane\nConc.", "Standard Deviation of\nMethane\nConc."
+        col.names = linebreak(c("Proximity\nCategory", "Number\nof Sites", "Mean\nMethane\nConc.",
+                                "Median\nMethane\nConc.", "Standard\nDeviation of\nMethane Conc.", 
+                                "IQR of\nMethane\nConc.", "Skewness of\nMethane\nConc."
         ), align = "c"))  %>%
   column_spec(1:1, width = "1.5cm") %>%
   kable_styling(position = "center") %>%
@@ -122,17 +136,18 @@ Now valley vs. upload, no matter the proximity:
   pafrack %>%
   group_by(location) %>%
   summarise(
+    number_of_sites = length(methane),
     mean_methane = mean(methane),
     median_methane = median(methane),
-    min_methane = min(methane),
-    max_methane = max(methane),
-    sd_methane = sd(methane)
+    sd_methane = sd(methane),
+    IQR_methane = IQR(methane),
+    skewness_methane = skewness(methane)
   ) %>% 
   ungroup() %>% data.frame() %>%
   kable("latex", booktabs = T, escape = F,
-        col.names = linebreak(c("Location", "Mean\nMethane\nConc.",
-                                "Median\nMethane\nConc.", "Min\nMethane\nConc.",
-                                "Max\nMethane\nConc.", "Standard Deviation of\nMethane\nConc."
+        col.names = linebreak(c("Location", "Number\nof Sites", "Mean\nMethane\nConc.",
+                                "Median\nMethane\nConc.", "Standard\nDeviation of\nMethane Conc.", 
+                                "IQR of\nMethane\nConc.", "Skewness of\nMethane\nConc."
         ), align = "c"))  %>%
   column_spec(1:1, width = "1.5cm") %>%
   kable_styling(position = "center") %>%
@@ -157,8 +172,8 @@ pafrack %>% group_by(proximity) %>%
   identify_outliers(methane)
 
 ## test for normality
-pafrack %>% group_by(proximity) %>%
-  shapiro_test(methane) ## Okay so p-value is significant => either log transform data or non-parametric
+near_far_shapiro <- pafrack %>% shapiro_test(methane) ## Okay so p-value is significant => either log transform data or non-parametric
+near_far_shapiro$p
 
 ## try to visualize data
 
@@ -167,7 +182,8 @@ ggplot(pafrack, aes(x=log10(methane))) +
   geom_histogram() ##still dont look normal
 
 ## verify this: 
-shapiro_test(log(pafrack$methane)) # Yes still non significant. Gotta do non parametric now
+near_far_shapiro_log <- shapiro_test(log(pafrack$methane)) # Yes still non significant. Gotta do non parametric now
+near_far_shapiro_log$p.value
 
 # since near and far samples are independent, Wilcoxon rank sum is the go to:
 
@@ -176,7 +192,7 @@ near_far_all <- pafrack %>%
   add_significance()
 near_far_all
 
-near_far_all_eff <- pafrack %>% wilcox_effsize(methane ~ proximity)
+near_far_all_eff <- pafrack %>% wilcox_effsize(methane ~ proxvalleimity)
 near_far_all_eff
 
 ## OK, p is significant. Near and Far are different!
@@ -210,10 +226,11 @@ shapiro_test(log(valley_sites$methane)) # Yes still non significant. Gotta do no
 near_far_valley <-  valley_sites %>%
   wilcox_test(methane ~ proximity, alternative = "less") %>%
   add_significance()
-near_far_valley
+near_far_valley$p
+near_far_valley$statistic
 
 near_far_valley_eff <- valley_sites %>% wilcox_effsize(methane ~ proximity)
-near_far_valley_eff
+near_far_valley_eff$effsize
 
 ## OK, p is significant. Near and Far are different at valley sites! effect size is small
 
