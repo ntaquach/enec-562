@@ -1,0 +1,48 @@
+---
+title: "Week 3 Lab Report"
+author: "Nguyen Tien Anh Quach"
+date: "`r Sys.Date()`"
+output:
+  pdf_document: default
+  html_document: default
+chunk_output_type: inline
+indent: true
+header-includes:
+   - \setlength\parindent{24pt}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Similar to last week you will be turning in 2 documents - a knitted PDF in the form of a lab write up (not as formal as last week, feel free to just answer each section outlined below). This document should not include any r code or errors. Include appropriate figures in the lab write up or an appendix. 
+
+Also turn in your .Rmd file which includes your code. Please annotate your code to explain what different sections mean.
+
+#Question 1 - 20 points
+Your assignment is to conduct a one-way ANOVA to determine if the average weight of confiscated elephant tusks has changed over time. Elephants are poached for their ivory, and USFWS authorities confiscate ivory when they find it entering the country. The data in TuskData.csv are the average weights of elephant tusks from 20 different seizure sites in 1970, 1990, and 2010. In a 1 or 2 paragraphs, 
+
+•please state the H0 and Ha of your test - 2.5
+•describe how you checked the assumptions of your statistical test 5
+•report the results of the ANOVA and a post-hoc test. 7.5
+•Include at least one graph that compares the weight of tusks over the three years. 5 
+
+
+
+#Question 2 - 20 points 
+We want to test whether four different antibiotics result in different levels of antibodies in the blood. Sixteen people are randomly assigned one of the four antibiotics, and samples of their blood are taken for analysis. To process the blood samples as quickly as possible, the samples are sent to four different laboratories – each lab receives one blood sample treated with one of the four antibiotics.
+
+Each laboratory has its own instruments and personnel that might cause variation in the results across laboratories. Our variable of interest is the level of antibodies in the blood samples; laboratories are blocks whose uncontrolled effects we want to separate from the main effect.
+```{r}
+lab <- c(rep(1:4, each = 4))
+antibiotic <- rep(c(1:4), 4)
+results <- (c(9.3, 9.4, 9.6, 10, 9.4, 9.3, 9.8, 9.9, 9.2,
+9.4, 9.5, 9.7, 9.7, 9.6, 10, 10.2))
+dlabs <- data.frame(lab = factor(lab),
+antibiotic = factor(antibiotic), results)
+```
+
+•please state the H0 and Ha of your test - 2.5
+•describe how you checked the assumptions of your statistical test 5
+•report the results of the ANOVA and a post-hoc test. 7.5
+•Include at least one graph. 5 

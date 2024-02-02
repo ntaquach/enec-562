@@ -1,0 +1,695 @@
+---
+title: "Week_3_lab"
+author: "Sarah Roberts"
+output: html_document
+---
+
+Today we will go over ANOVA and linear models in R 
+
+1. One way ANOVA 
+2. Two Way ANOVA 
+3. Blocking ANOVA 
+4. Repeated Measures ANOVA 
+
+Upload after class (before 8am Friday) - From the repeated measures ANOVA section: Which is more stressful for a shark? Being caught by a hook or net? Submit your one sentence answer to Canvas. 
+
+load in your packages - here is a little trick where I write a function that loads the required packages
+```{r}
+ipak <- function(pkg){
+new.pkg <- pkg[!(pkg %in% installed.packages()[, "Package"])]
+if (length(new.pkg)) 
+    install.packages(new.pkg, dependencies = TRUE)
+sapply(pkg, require, character.only = TRUE)
+}
+
+# usage
+packages <- c("ggplot2", "ggpubr", "rstatix", "dplyr", "ggthemes", "ggformula", "ggpmisc", "GGally", "arm")
+ipak(packages)
+
+```
+
+#1 One Way ANOVA
+Here, we’ll use the built-in R data set named PlantGrowth. It contains the weight of plants obtained under a control and two different treatment conditions.
+
+```{r}
+data("PlantGrowth")
+set.seed(1234)
+```
+
+
+Show the levels of the grouping variable:
+```{r}
+levels(PlantGrowth$group)
+
+```
+
+If the levels are not automatically in the correct order, re-order them as follow:
+```{r}
+PlantGrowth <- PlantGrowth %>%
+  reorder_levels(group, order = c("ctrl", "trt1", "trt2"))
+```
+
+Compute some summary statistics (count, mean and sd) of the variable weight organized by groups:
+
+```{r}
+PlantGrowth %>%
+  group_by(group) %>%
+  get_summary_stats(weight, type = "mean_sd")
+
+```
+
+Create a box plot of weight by group:
+```{r}
+ggboxplot(PlantGrowth, x = "group", y = "weight")
+```
+
+###1.1 Check Assumptions
+####a) outliers
+```{r}
+PlantGrowth %>% 
+  group_by(group) %>%
+  identify_outliers(weight)
+```
+There were no extreme outliers.
+
+Note that, in the situation where you have extreme outliers, this can be due to: 1) data entry errors, measurement errors or unusual values.
+
+You can include the outlier in the analysis anyway if you do not believe the result will be substantially affected. This can be evaluated by comparing the result of the ANOVA test with and without the outlier.
+
+It’s also possible to keep the outliers in the data and perform robust ANOVA test using the WRS2 package.
+
+####b) Normality assumption
+The normality assumption can be checked by using one of the following two approaches:
+
+Analyzing the ANOVA model residuals to check the normality for all groups together. This approach is easier and it’s very handy when you have many groups or if there are few data points per group.
+
+Check normality for each group separately. This approach might be used when you have only a few groups and many data points per group.
+
+Option 1: 
+QQ plot and Shapiro-Wilk test of normality are used. QQ plot draws the correlation between a given data and the normal distribution.
+```{r}
+# Build the linear model
+model  <- lm(weight ~ group, data = PlantGrowth)
+# Create a QQ plot of residuals
+ggqqplot(residuals(model))
+
+# Compute Shapiro-Wilk test of normality
+shapiro_test(residuals(model))
+```
+In the QQ plot, as all the points fall approximately along the reference line, we can assume normality. This conclusion is supported by the Shapiro-Wilk test. The p-value is not significant (p = 0.43), so we can assume normality.
+
+Option 2: 
+Check normality assumption by groups. Computing Shapiro-Wilk test for each group level. If the data is normally distributed, the p-value should be greater than 0.05.
+
+```{r}
+PlantGrowth %>%
+  group_by(group) %>%
+  shapiro_test(weight)
+```
+he score were normally distributed (p > 0.05) for each group, as assessed by Shapiro-Wilk’s test of normality.
+
+Note that, if your sample size is greater than 50, the normal QQ plot is preferred because at larger sample sizes the Shapiro-Wilk test becomes very sensitive even to a minor deviation from normality.
+
+QQ plot draws the correlation between a given data and the normal distribution. Create QQ plots for each group level:
+
+```{r}
+ggqqplot(PlantGrowth, "weight", facet.by = "group")
+```
+
+####c) Homogneity of variance assumption
+The residuals versus fits plot can be used to check the homogeneity of variances.
+
+```{r}
+plot(model, 1)
+```
+
+In the plot above, there is no evident relationships between residuals and fitted values (the mean of each groups), which is good. So, we can assume the homogeneity of variances.
+
+It’s also possible to use the Levene’s test to check the homogeneity of variances:
+```{r}
+PlantGrowth %>% levene_test(weight ~ group)
+```
+
+From the output above, we can see that the p-value is > 0.05, which is not significant. This means that, there is not significant difference between variances across groups. Therefore, we can assume the homogeneity of variances in the different treatment groups.
+
+In a situation where the homogeneity of variance assumption is not met, you can compute the Welch one-way ANOVA test using the function welch_anova_test()[rstatix package]. This test does not require the assumption of equal variances.
+
+###1.2 Compute ANVOA
+```{r}
+res.aov <- PlantGrowth %>% anova_test(weight ~ group, detailed = T)
+res.aov
+
+#this is how you do it in base R
+summary(aov(weight ~ group, data = PlantGrowth))
+```
+
+In the table above, the column ges corresponds to the generalized eta squared (effect size). It measures the proportion of the variability in the outcome variable (here plant weight) that can be explained in terms of the predictor (here, treatment group). An effect size of 0.26 (26%) means that 26% of the change in the weight can be accounted for the treatment conditions. Note, you get the same thing by calculating the variance explained by the treatment (SSn)/Total variance (SSn + SSd) or (3.766)/(3.766+10.492)
+
+From the above ANOVA table, it can be seen that there are significant differences between groups (p = 0.016), which are highlighted with “*“, F(2, 27) = 4.85, p = 0.016, eta2[g] = 0.26.
+
+where,
+
+F indicates that we are comparing to an F-distribution (F-test); (2, 27) indicates the degrees of freedom in the numerator (DFn) and the denominator (DFd), respectively; 4.85 indicates the obtained F-statistic value
+p specifies the p-value
+ges is the generalized effect size (amount of variability due to the factor) You can get this value, called R-squared, by running the linear model function 
+
+```{r}
+summary(lm(weight ~ group, dat = PlantGrowth))
+
+#here is another way to display results with the arm package
+display(lm(weight ~ group, dat = PlantGrowth))
+```
+
+###1.3 Post Hoc Test
+A significant one-way ANOVA is generally followed up by Tukey post-hoc tests to perform multiple pairwise comparisons between groups. Key R function: tukey_hsd() [rstatix].
+
+```{r}
+# Pairwise comparisons
+pwc <- PlantGrowth %>% tukey_hsd(weight ~ group)
+pwc
+```
+
+The output contains the following columns:
+
+estimate: estimate of the difference between means of the two groups
+conf.low, conf.high: the lower and the upper end point of the confidence interval at 95% (default)
+p.adj: p-value after adjustment for the multiple comparisons.
+
+###1.4 Report results 
+We could report the results of one-way ANOVA as follow:
+
+A one-way ANOVA was performed to evaluate if the plant growth was different for the 3 different treatment groups: ctr (n = 10), trt1 (n = 10) and trt2 (n = 10).
+
+Data is presented as mean +/- standard deviation. Plant growth was statistically significantly different between different treatment groups, F(2, 27) = 4.85, p = 0.016, generalized eta squared = 0.26.
+
+Plant growth decreased in trt1 group (4.66 +/- 0.79) compared to ctr group (5.03 +/- 0.58). It increased in trt2 group (5.53 +/- 0.44) compared to trt1 and ctr group.
+
+Tukey post-hoc analyses revealed that the increase from trt1 to trt2 (0.87, 95% CI (0.17 to 1.56)) was statistically significant (p = 0.012), but no other group differences were statistically significant.
+
+```{r}
+# Visualization: box plots with p-values
+pwc <- pwc %>% add_xy_position(x = "group")
+ggboxplot(PlantGrowth, x = "group", y = "weight") +
+  stat_pvalue_manual(pwc, hide.ns = TRUE) +
+  labs(
+    subtitle = get_test_label(res.aov, detailed = TRUE),
+    caption = get_pwc_label(pwc)
+    )
+```
+
+###1.5 non parametric 
+The classical one-way ANOVA test requires an assumption of equal variances for all groups. In our example, the homogeneity of variance assumption turned out to be fine: the Levene test is not significant.
+
+How do we save our ANOVA test, in a situation where the homogeneity of variance assumption is violated?
+
+The Welch one-way test is an alternative to the standard one-way ANOVA in the situation where the homogeneity of variance can’t be assumed (i.e., Levene test is significant).
+In this case, the Games-Howell post hoc test or pairwise t-tests (with no assumption of equal variances) can be used to compare all possible combinations of group differences.
+```{r}
+# Welch One way ANOVA test
+res.aov2 <- PlantGrowth %>% welch_anova_test(weight ~ group)
+# Pairwise comparisons (Games-Howell)
+pwc2 <- PlantGrowth %>% games_howell_test(weight ~ group)
+# Visualization: box plots with p-values
+pwc2 <- pwc2 %>% add_xy_position(x = "group", step.increase = 1)
+ggboxplot(PlantGrowth, x = "group", y = "weight") +
+  stat_pvalue_manual(pwc2, hide.ns = TRUE) +
+  labs(
+    subtitle = get_test_label(res.aov2, detailed = TRUE),
+    caption = get_pwc_label(pwc2)
+    )
+```
+
+You can also perform pairwise comparisons using pairwise t-test with no assumption of equal variances:
+
+
+```{r}
+pwc3 <- PlantGrowth %>% 
+  pairwise_t_test(
+    weight ~ group, pool.sd = FALSE,
+    p.adjust.method = "bonferroni"
+    )
+pwc3
+```
+
+
+#2 Two-Way ANOVA
+Data preparation
+
+Here, we’ll use the built-in R data set named ToothGrowth. It contains data from a study evaluating the effect of vitamin C on tooth growth in Guinea pigs. The experiment has been performed on 60 pigs, where each animal received one of three dose levels of vitamin C (0.5, 1, and 2 mg/day) by one of two delivery methods, (orange juice or ascorbic acid (a form of vitamin C and coded as VC). Tooth length was measured and a sample of the data is shown below.
+
+Load the data and inspect one random row by groups:
+
+```{r}
+
+set.seed(123)
+toothdat <- ToothGrowth
+```
+
+We want to know if tooth length depends on supp and dose.
+
+First we need to Convert dose as a factor and recode the levels
+
+```{r}
+# as "D0.5", "D1", "D2"
+toothdat$dose <- factor(toothdat$dose, 
+                  levels = c(0.5, 1, 2),
+                  labels = c("D0.5", "D1", "D2"))
+
+head(toothdat)
+
+```
+
+
+Get summary statistics and visualize  your data with ggpubr:
+```{r}
+toothdat %>%
+  group_by(supp, dose) %>%
+  get_summary_stats(len, type = "mean_sd")
+
+bxp <- ggboxplot(toothdat, x = "dose", y = "len", color = "supp",
+          palette = c("#00AFBB", "#E7B800"))
+bxp
+```
+
+We can also plot this as a line plot
+```{r}
+# Plot tooth length ("len") by groups ("dose")
+# Color box plot by a second group: "supp"
+# Add error bars: mean_se
+# (other values include: mean_sd, mean_ci, median_iqr, ....)
+library("ggpubr")
+ggline(toothdat, x = "dose", y = "len", color = "supp",
+       add = c("mean_se", "dotplot"),
+       palette = c("#00AFBB", "#E7B800"))
+```
+
+####2.1 Check Assumptions
+#####a) outliers 
+Identify outliers in each cell design:
+```{r}
+toothdat %>%
+  group_by(dose, supp) %>%
+  identify_outliers(len)
+```
+
+#####b) Normality Assumption
+Check normality assumption by analyzing the model residuals. QQ plot and Shapiro-Wilk test of normality are used.
+```{r}
+# Build the linear model
+model  <- lm(len ~ dose*supp,
+             data = toothdat)
+# Create a QQ plot of residuals
+ggqqplot(residuals(model))
+
+shapiro_test(residuals(model))
+```
+
+In the QQ plot, as all the points fall approximately along the reference line, we can assume normality. This conclusion is supported by the Shapiro-Wilk test. The p-value is not significant (p = 0.66), so we can assume normality.
+
+####c) Homogneity of variances 
+```{r}
+toothdat %>% levene_test(len ~ dose*supp)
+```
+
+The Levene’s test is not significant (p > 0.05). Therefore, we can assume the homogeneity of variances in the different groups.
+
+###2.2 Compute 
+
+In the R code below, the asterisk represents the interaction effect and the main effect of each variable (and all lower-order interactions).
+
+```{r}
+res.aov <- toothdat %>% anova_test(len ~ dose*supp)
+res.aov
+
+```
+There was a statistically significant interaction between supplement and dose for tooth length, F(2, 54) = 4.107, p = 2.20e-02.
+
+
+###2.3 Post-hoc tests
+A significant two-way interaction indicates that the impact that one factor (e.g., supplement) has on the outcome variable (e.g., tooth length) depends on the level of the other factor (e.g., dose) (and vice versa). So, you can decompose a significant two-way interaction into:
+
+Simple main effect: run one-way model of the first variable at each level of the second variable,
+
+Simple pairwise comparisons: if the simple main effect is significant, run multiple pairwise comparisons to determine which groups are different.
+
+For a non-significant two-way interaction, you need to determine whether you have any statistically significant main effects from the ANOVA output. A significant main effect can be followed up by pairwise comparisons between groups.
+
+Procedure for significant two-way interaction:
+
+#####a) Compute simple main effects
+In our example, you could therefore investigate the effect of dose at every level of supplement or vice versa.
+
+Here, we’ll run a one-way ANOVA of dose at each levels of supplement
+
+Note that, if you have met the assumptions of the two-way ANOVA (e.g., homogeneity of variances), it is better to use the overall error term (from the two-way ANOVA) as input in the one-way ANOVA model. This will make it easier to detect any statistically significant differences if they exist (Keppel & Wickens, 2004; Maxwell & Delaney, 2004).
+
+When you have failed the homogeneity of variances assumptions, you might consider running separate one-way ANOVAs with separate error terms.
+
+In the R code below, we’ll group the data by supplement and analyze the simple main effects of dosage on tooth length. The argument error is used to specify the ANOVA model from which the pooled error sum of squares and degrees of freedom are to be calculated.
+
+```{r}
+# Group the data by gender and fit  anova
+model <- lm(len ~ dose * supp, data = toothdat)
+toothdat %>%
+  group_by(supp) %>%
+  anova_test(len ~ dose, error = model)
+
+```
+The simple main effect of “dose” on tooth length was statistically significant for OJ and VC supplements (p < 0.0001).
+
+In other words, there is a statistically significant difference in mean tooth length between OJ administered at .5, 1, or 2 dosage, F(2, 54) = 33.56, p < 0.0001 and VC, F(2, 54) = 62.54, p < 0.0001.
+
+***Note that, statistical significance of the simple main effect analyses was accepted at a Bonferroni-adjusted alpha level of 0.025. This corresponds to the current level you declare statistical significance at (i.e., p < 0.05) divided by the number of simple main effect you are computing (i.e., 2).
+
+#####b) Multiple comparisons
+A statistically significant simple main effect can be followed up by multiple pairwise comparisons to determine which group means are different. We’ll now perform multiple pairwise comparisons between the different supplement groups by dosage
+
+```{r}
+library(emmeans)
+pwc <- toothdat %>% 
+  group_by(supp) %>%
+  tukey_hsd(len ~ dose) 
+pwc
+
+```
+
+There was a significant difference of tooth length between all dosages for both OJ and VC (p < 0.05) EXCEPT for OJ dosage 1 and 2.
+
+###2.4 Non-Significant two-way interaction 
+If the two-way interaction is not statistically significant, you need to consult the main effect for each of the two variables (dose and supplement) in the ANOVA output.
+```{r}
+res.aov
+
+```
+In our example, there was a statistically significant main effect of dose (F(2, 54) = 92.000, p < 0.0001) on the tooth length and supplement on tooth length (F(1, 54) = 15.572, p < 0.0001).
+
+
+Perform pairwise comparisons between groups to determine which groups are significantly different. We don’t need to perform the test for the “supp” variable because it has only two levels, which have been already proven to be significantly different by ANOVA test. Therefore, the Tukey HSD test will be done only for the factor variable “dose”.
+
+
+Tukey HSD 
+```{r}
+toothdat %>% tukey_hsd(len ~ dose)
+```
+
+
+All pairwise differences were statistically significant (p < 0.05).
+
+######Tukey vs bonferroni. 
+Okay - bear with me for a second. 
+
+You can also use what is called a pairwise t-test with a bonferroni correction (which basically just adjusts the alpha level based on the number of comparisons.). People have strong opinions on what to use (Tukey vs Bonferroni). From my understanding, the Tukey test is best when the group sample sizes are equal. The Bonferroni test is best when we have specified a set of planned comparisons (and it doesn't if the group sizes are equal). Our groups (dose + supp) were equal, so we used a Tukey_HSD. It is important to choose the post-hoc test beforehand as to not force significance where there isn't any. Here is how I can tell that the group sizes are equal. 
+
+```{r}
+toothdat %>% group_by(dose, supp) %>% tally()
+```
+
+###2.5 Report
+A two-way ANOVA was conducted to examine the effects of supplement and dosage level on tooth length.
+
+Residual analysis was performed to test for the assumptions of the two-way ANOVA. Outliers were assessed by box plot method, normality was assessed using Shapiro-Wilk’s normality test and homogeneity of variances was assessed by Levene’s test.
+
+There were no extreme outliers, residuals were normally distributed (p > 0.05) and there was homogeneity of variances (p > 0.05).
+
+There was a statistically significant interaction between supplement and dose for tooth length, F(2, 54) = 4.107, p = 2.20e-02.
+
+Consequently, an analysis of simple main effects for dosage level was performed. There was a statistically significant difference in mean tooth length for both OJ administered at .5, 1, or 2 dosage, F(2, 54) = 33.56, p < 0.0001 and VC administered at either .5, 2 or 1 dosage levels, F(2, 54) = 62.54, p < 0.0001
+
+All pairwise comparisons were analyzed between the different dosage groups organized by supplement There was a significant difference of tooth length score between all dosages for both OJ and VC (p < 0.05) EXCEPT for OJ dosage 1 and 2. 
+
+```{r}
+# Visualization: box plots with p-values
+pwc <- pwc %>% add_xy_position(x = "supplement")
+bxp +
+  stat_pvalue_manual(pwc) +
+  labs(
+    subtitle = get_test_label(res.aov, detailed = TRUE),
+    caption = get_pwc_label(pwc)
+    )
+```
+
+I am not going to go over 3 way ANOVA - they aren't very common and this lab is already getting long. If you need to use a 3 way ANOVA (you need to assess whether there is an interaction effect between three independent categorical variables on a continuous outcome variable) refer to this datanovia page - https://www.datanovia.com/en/lessons/anova-in-r/ 
+
+#3 Blocking ANOVA 
+Imagine we has designed an experiment in which we intend to measure a response (y) to one of treatments (three levels; 'a1', 'a2' and 'a3'). Unfortunately, the system that we intend to sample is spatially heterogeneous and thus will add a great deal of noise to the data that will make it difficult to detect a signal (impact of treatment).
+
+Thus in an attempt to constrain this variability you decide to apply a design (RCB) in which each of the treatments within each of 35 blocks dispersed randomly throughout the landscape.
+
+Let's create some fake data incorporating the following properties:
+the number of treatments = 3
+the number of blocks containing treatments = 35
+the mean of the treatments = 40, 70 and 80 respectively
+the variability (standard deviation) between blocks of the same treatment = 12
+the variability (standard deviation) between treatments withing blocks = 5
+```{r}
+set.seed(1)
+nTreat <- 3
+nBlock <- 35
+sigma <- 5
+sigma.block <- 12
+n <- nBlock * nTreat
+Block <- gl(nBlock, k = 1)
+Treat <- gl(nTreat, k = 1, lab = LETTERS[1:nTreat])
+dt <- expand.grid(Treat = Treat, Block = Block)
+Xmat <- model.matrix(~-1 + Block + Treat, data = dt)
+block.effects <- rnorm(n = nBlock, mean = 40, sd = sigma.block)
+A.effects <- c(30, 40)
+all.effects <- c(block.effects, A.effects)
+lin.pred <- Xmat %*% all.effects
+
+# OR
+Xmat <- cbind(model.matrix(~-1 + Block, data = dt), model.matrix(~-1 + Treat, data = dt))
+## Sum to zero block effects
+block.effects <- rnorm(n = nBlock, mean = 0, sd = sigma.block)
+A.effects <- c(40, 70, 80)
+all.effects <- c(block.effects, A.effects)
+lin.pred <- Xmat %*% all.effects
+
+
+
+## the quadrat observations (within sites) are drawn from normal distributions with means according to
+## the site means and standard deviations of 5
+y <- rnorm(n, lin.pred, sigma)
+data.rcb1 <- data.frame(y = y, expand.grid(Treat = Treat, Block = paste0("B", Block)))
+head(data.rcb1)  #print out the first six rows of the data set
+```
+
+```{r}
+data.rcb1 %>% ggplot(aes(x = Treat, y = y)) + geom_boxplot()
+data.rcb1 %>% levene_test(y ~ Treat)
+data.rcb1 %>% levene_test(y ~ Block)
+
+```
+there is no evidence that the response variable is consistently non-normal across all populations - each boxplot is approximately symmetrical
+
+there is no evidence that variance (as estimated by the height of the boxplots) differs between the five populations. More importantly, there is no evidence of a relationship between mean and variance - the height of boxplots does not increase with increasing position along the y-axis. Hence it there is no evidence of non-homogeneity
+
+Obvious violations could be addressed either by:
+transform the scale of the response variables (to address normality etc). Note transformations should be applied to the entire response variable (not just those populations that are skewed).
+
+Lets add in the blocking information 
+```{r}
+data.rcb1 %>% ggplot(aes(x = Treat, y = y, group = Block, colour = Block)) + geom_line()
+
+```
+Fitting the model 
+```{r}
+data.rcb1 %>% anova_test(y ~ Treat + Block, detailed = T)
+
+#in baseR
+summary(aov(y ~ Treat + Block, data = data.rcb1))
+```
+What if we don't consider the effect of the block? 
+
+```{r}
+data.rcb1 %>% anova_test(y ~ Treat, detailed = T)
+```
+
+
+
+Look at the degrees of freedom and the sums of squares of the residual (error). How do these compare to the previous model that accounted for the block effect? The degrees of freedom is higher. In principle this is a good thing because it means we have more power to detect a significant difference among the treatment means. However, the error sum of squares is also much higher when we ignore the block effect. We have accounted for much less noise by ignoring the block effect. As a result, the error mean square is much lower, and so the F-statistic associated with the treatment effect is also much lower. The take home message is that designing a blocked experiment, and properly accounting for the blocked structure, will (usually) result in a more powerful analysis.
+
+In a randomised block analysis we are not usually interested in investigating significant block effects—the primary role of the blocking is to remove unwanted variation that might obscure the differences between treatments. R automatically gives us a test of the block effect, and if it is significant it tells us that using the block layout has removed a considerable amount of variation (though even if the result isn’t quite what would conventionally be regarded as significant, i.e. if is not as low as 0.05, then the blocking may still have been helpful). For this, and other, technical reasons we never carry out multiple comparisons between the block means. If the treatment effect is significant, multiple comparisons can be done between the treatment means using the Tukey test.
+
+What if we consider block a random effect? 
+
+If we treat the blocking variable as a fixed effect, then the inference will only apply to those particular blocks (or samples). If we treat the blocking variable as a random effect, then inference can be made to the population of all possible blocks. The second option may be what you are after; however, the rule of thumb is that you need at least six subjects (six samples) to estimate a random effect (i.e. variance) or the precision on the estimate cannot be estimated. Note that this also depends upon the assumption that the blocks are chosen randomly from a normal distribution of blocks.
+
+The take-away message is that it may be preferable to treat the blocking factor as a random effect, but may not always be possible.
+
+```{r}
+#baseR 
+summary(aov(y ~ Treat + Error(Block), data = data.rcb1))
+
+#Rstatix
+res.aov <- anova_test(
+  data = data.rcb1, dv = y, wid = Block,
+  within = Treat)
+get_anova_table(res.aov)
+
+```
+We see that the test of the significance for the fixed effects which is effectively the same as the original F-test presented above. Note that the p-values are provided only for the fixed effects terms. 
+
+
+#4 Repeated Measures ANOVA 
+How does fishing gear influence sharky bycatch stress levels? 
+- measure shark blood samples immediately after, 30 minutes after, and 1 hour after being caught by three different types of fishing gear (hooks vs. nets). 
+
+```{r}
+getwd()
+shark <- read.csv("shark.csv")
+```
+
+```{r}
+# Gather the columns t1, t2 and t3 into long format.
+# Convert id and time into factor variables
+shark <- shark %>%
+  gather(key = "time", value = "stress", t1, t2, t3) %>%
+  convert_as_factor(id, time)
+# Inspect some random rows of the data by groups
+set.seed(123)
+shark %>% sample_n_by(gear, time, size = 1)
+```
+In this example, the effect of “time” on stress is our focal variable, that is our primary concern.
+
+However, it is thought that the effect “time” will be different depending on the gear type. 
+
+##4.1 Summary stats and visualization
+```{r}
+shark %>%
+  group_by(gear, time) %>%
+  get_summary_stats(stress, type = "mean_sd")
+```
+Create box plots of the score colored by treatment groups:
+
+```{r}
+bxp <- ggboxplot(
+  shark, x = "time", y = "stress",
+  color = "gear", palette = "jco"
+  )
+bxp
+```
+##4.2 Assumptions
+```{r}
+shark %>%
+  group_by(gear, time) %>%
+  identify_outliers(stress)
+```
+
+```{r}
+shark %>%
+  group_by(gear, time) %>%
+  shapiro_test(stress)
+
+ggqqplot(shark, "stress", ggtheme = theme_bw()) +
+  facet_grid(time ~ gear, labeller = "label_both")
+```
+
+
+## 4.3 compute 
+hint - type in ?anova_test into your console to see what this is running 
+```{r}
+res.aov <- anova_test(
+  data = shark, dv = stress, wid = id,
+  within = c(gear, time))
+get_anova_table(res.aov)
+```
+There is a statistically significant two-way interactions between gear and time, F(2, 22) = 30.4, p < 0.0001.
+
+There is a way to run this in base r as well 
+```{r}
+summary(aov(stress~gear*time + Error(id/(gear*time)), data = shark))
+```
+
+
+## 4.4 Posthoc test 
+A significant two-way interaction indicates that the impact that one factor (e.g., gear) has on the outcome variable (e.g., stress) depends on the level of the other factor (e.g., time) (and vice versa). So, you can decompose a significant two-way interaction into:
+
+Simple main effect: run one-way model of the first variable (factor A) at each level of the second variable (factor B),
+
+Simple pairwise comparisons: if the simple main effect is significant, run multiple pairwise comparisons to determine which groups are different.
+For a non-significant two-way interaction, you need to determine whether you have any statistically significant main effects from the ANOVA output.
+
+
+
+Effect of gear 
+In our example, we’ll analyze the effect of gear on stress at every time point. Note that, the gear factor variable has only two levels ; thus, ANOVA test and paired t-test will give the same p-values.
+
+```{r}
+# Effect of gear at each time point
+one.way <- shark %>%
+  group_by(time) %>%
+  anova_test(dv = stress, wid = id, within = gear) %>%
+  get_anova_table() %>%
+  adjust_pvalue(method = "bonferroni")
+one.way
+```
+
+```{r}
+# Pairwise comparisons between gear groups
+pwc <- shark %>%
+  group_by(time) %>%
+  pairwise_t_test(
+    stress ~ gear, paired = TRUE,
+    p.adjust.method = "bonferroni"
+    )
+pwc
+```
+Considering the Bonferroni adjusted p-value (p.adj), it can be seen that the simple main effect of gear was not significant at the time point t1 (p = 1). It becomes significant at t2 (p = 0.036) and t3 (p = 0.00051).
+
+Pairwise comparisons show that the mean stress was significantly different between gear groups at t2 (p = 0.12) and t3 (p = 0.00017) but not at t1 (p = 0.55).
+
+Effect of time. Note that, it’s also possible to perform the same analysis for the time variable at each level of gear You don’t necessarily need to do this analysis.
+
+```{r}
+# Effect of time at each level of gear
+one.way2 <- shark %>%
+  group_by(gear) %>%
+  anova_test(dv = stress, wid = id, within = time) %>%
+  get_anova_table() %>%
+  adjust_pvalue(method = "bonferroni")
+one.way2
+```
+After executing the R code above, you can see that the effect of time is significant only for the hook group, F(2, 22) = 39.7, p < 0.0001. Pairwise comparisons show that all comparisons between time points were statistically significant for hooked sharks - not shown. 
+
+## 4.5 Report 
+We could report the result as follow:
+
+A two-way repeated measures ANOVA was performed to evaluate the effect of different gears over time on shark stress.
+
+There was a statistically significant interaction between gear and time on stress, F(2, 22) = 30.4, p < 0.0001. Therefore, the effect of gear variable was analyzed at each time point. P-values were adjusted using the Bonferroni multiple testing correction method. The effect of gear was significant at t2 (p = 0.036) and t3 (p = 0.00051) but not at the time point t1 (p = 1).
+
+Pairwise comparisons, using paired t-test, show that the mean stress was significantly different between gears at time points t2 (p = 0.012) and t3 (p = 0.00017) but not at t1 (p = 0.55).
+```{r}
+# Visualization: box plots with p-values
+pwc <- pwc %>% add_xy_position(x = "time")
+bxp + 
+  stat_pvalue_manual(pwc, tip.length = 0, hide.ns = TRUE) +
+  labs(
+    subtitle = get_test_label(res.aov, detailed = TRUE),
+    caption = get_pwc_label(pwc)
+  )
+```
+
+
+#In class Assignment: 
+
+Which is more stressful for a shark? Being caught by a hook or net? Submit your one sentence answer to Canvas. 
+
+
+#5. Log Transformation 
+
+If your assumptions are violated (most of the time equal variances is the culprit), you can transform your data. Just like in our t test examples from a few weeks ago, interpreting log transformed ANOVAs requires some back transforming. In life (and in class) you have three options when reporting your results: 
+
+1. We could present the transformed means (having stated what the transformation was). The disadvantage to this is that the numbers themselves convey little information about the data values on the original scale. This isn’t always a problem. For example, effects given on a log scale act in a ‘multiplicative’ manner, so a model with log-transformed response variable can still be interpreted if we know what we’re doing.
+    Recall that the difference in the logs of two values is the log of the ratio of the two values. Thus, 
+    back-transforming the difference in log values results in a ratio of values on the original scale. Thus, in     a One-Way ANOVA, the back-transformed difference in group means on the log scale is the ratio of group         means on the original scale.
+    
+  For example, suppose that the difference in log means for two groups is 0.5. Back-transforming this value       gives e^0.5=1.649. Thus, on the original scale, the mean for the first group is 1.649 times larger than the    mean for the second group. Alternatively, suppose that the difference in log means for two groups is -0.5.     Back-transforming this value gives e^-0.5=0.607. Thus, on the original scale, the mean for the first group    is 0.607 as large as the mean for the second group. Or, the mean for the second group is  1/0.607 =1.649         times larger than the mean for the first group.
+
+2. We could back-transform the means of the log-transformed data by taking the antilogs:  
+10^x (for logs to the base 10) and e^x (for natural logs). When we back-transform data, however, we need to be aware of two things: (1) The back-transformed mean will not be the same as a mean calculated from the original data; (2) We have to be careful when we back-transform standard errors. If we want to display the back-transformed means on a bar plot, with some indication of the variability of the data, we must calculate the standard errors and then back transform the upper and lower limits, which will not then be symmetrical about the mean. 
+
+3. We could also present the means calculated from the original data but state clearly that the statistical analysis was carried out on transformed data. This is often the simplest way to proceed.
+
+I would go with options 1 or 3
