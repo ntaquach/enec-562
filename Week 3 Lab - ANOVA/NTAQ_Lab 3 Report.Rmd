@@ -12,21 +12,122 @@ header-includes:
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = F)
 ```
 
 Similar to last week you will be turning in 2 documents - a knitted PDF in the form of a lab write up (not as formal as last week, feel free to just answer each section outlined below). This document should not include any r code or errors. Include appropriate figures in the lab write up or an appendix. 
 
 Also turn in your .Rmd file which includes your code. Please annotate your code to explain what different sections mean.
 
-#Question 1 - 20 points
-Your assignment is to conduct a one-way ANOVA to determine if the average weight of confiscated elephant tusks has changed over time. Elephants are poached for their ivory, and USFWS authorities confiscate ivory when they find it entering the country. The data in TuskData.csv are the average weights of elephant tusks from 20 different seizure sites in 1970, 1990, and 2010. In a 1 or 2 paragraphs, 
+# Question 1 - 20 points
+Your assignment is to conduct a one-way ANOVA to determine if the average weight of confiscated elephant tusks has changed over time. Elephants are poached for their ivory, and USFWS authorities confiscate ivory when they find it entering the country. The data in TuskData.csv are the average weights of elephant tusks from 20 different seizure sites in 1970, 1990, and 2010. 
 
-•please state the H0 and Ha of your test - 2.5
-•describe how you checked the assumptions of your statistical test 5
-•report the results of the ANOVA and a post-hoc test. 7.5
-•Include at least one graph that compares the weight of tusks over the three years. 5 
+## Answer
 
+1. H~0~: The average weights of elephant tusks confiscated from 20 sites in 1970, 1990, and 2010 have no difference.
+
+H~a~: There is a difference in the average weights of elephant tusks confiscated from 20 sites in 1970, 1990, and 2010.
+
+2. Check assumptions of one-way ANOVA:
+```{r message=F, warning=F}
+#load package
+library(dplyr)
+library(rstatix)
+library(ggplot2)
+library(ggpubr)
+library(ggsignif)
+
+#load data
+tusk <- read.csv("TuskData.csv")
+```
+
+```{r message=F, warning=F, results=F}
+#identify outliers
+tusk %>%
+  group_by(Year) %>%
+  identify_outliers(Tusk.kg)
+
+#check for normality
+
+tusk %>% 
+  group_by(Year) %>%
+  summarise(length_Tusk_kg = length(Tusk.kg))
+
+# only 20 for each year, do Shapiro-Wilk
+
+tusk_normal <- tusk %>%
+  group_by(Year) %>%
+  shapiro_test(Tusk.kg)
+tusk_normal
+
+## homogeneity of variance
+tusk_var <- tusk %>% levene_test(Tusk.kg~as.character(Year))
+tusk_var
+
+```
+\hspace{\parindent} a. No outlier was detected, as R returned an empty data frame.
+
+\hspace{\parindent} b. Shapiro-Wilk tests for three Year groups returned insignificant p-values, which were `r round(tusk_normal$p[tusk_normal$Year == 1970], 2)`, `r round(tusk_normal$p[tusk_normal$Year == 1990], 2)`, and `r round(tusk_normal$p[tusk_normal$Year == 2010], 2)`, for 1970, 1990, and 2010, respectively. QQ plot of data also looked normal and most data points fell within the 95% C.I. (Fig. 1). 
+
+```{r message=F, warning=F, fig.align='center'}
+#plotting QQplot of data to be sure
+ggqqplot(tusk, "Tusk.kg", facet.by = "Year")
+```
+\begin{center}
+Figure 1. QQ plot of tusk weight data collected in 1970, 1990, and 2010.
+\end{center}
+\hspace{\parindent} c. Levene's test for equal variance returned the significant p-value of `r round(tusk_var$p,2)`. Therefore, there is a significant difference in variance among years (Fig. 2).
+```{r message=F, warning=F, fig.align='center'}
+#plotting variance plot to be sure
+model  <- lm(Tusk.kg~as.character(Year), data = tusk)
+plot(model, 1)
+```
+\begin{center}
+Figure 2. Residual plot of tusk weight data collected in 1970, 1990, and 2010.
+\end{center}
+\hspace{\parindent} d. Therefore, I am going to conduct a Welch one-way ANOVA, as the assumption of equal variance was violated.
+
+3. Welch one-way ANOVA test result
+
+```{r message=F,warning=F, results=F}
+tusk.aov <- tusk %>% welch_anova_test(Tusk.kg~Year)
+tusk.aov
+```
+\hspace{\parindent} There is a significant difference in mean of tusk weight among years with a p-value of `r tusk.aov$p` and F (2, 35.36) = `r round(tusk.aov$statistic, 2)`.
+
+4. Post-hoc test result
+```{r message=F, warning=F, results=F}
+tusk.gh <- tusk %>% games_howell_test(Tusk.kg~Year)
+tusk.gh
+
+tusk.gh.test <- tibble::tribble(
+  ~group1, ~group2,   ~p.adj,
+    "1970",     "1990", 5.55e-16,
+    "1970",     "2010", 4.25e-14,
+      "1990",     "2010", 6.30e-02
+  )
+tusk.gh.test
+tusk.gh$p.adj[tusk.gh$group2 == 2010 & tusk.gh$group1 == 1970]
+```
+\hspace{\parindent} Games-Howell post hoc test showd that there is a significant difference in mean of tusk weight between 1970 and 1990 (p = `r tusk.gh$p.adj[tusk.gh$group2 == 1990]`) and between 1970 and 2010 (p = `r tusk.gh$p.adj[tusk.gh$group2 == 2010 & tusk.gh$group1 == 1970]`).
+```{r message=F,warning=F}
+tusk.gh <- tusk.gh %>% add_xy_position(x = "group", step.increase = 1)
+tusk$Year = as.factor(tusk$Year)
+ggboxplot(tusk, x = "Year", y = "Tusk.kg") +
+  stat_pvalue_manual(tusk.gh, hide.ns = T, label =NULL) +
+  labs(
+    subtitle = get_test_label(tusk.aov, detailed = TRUE),
+    caption = get_pwc_label(tusk.gh)
+    )
+
+ggboxplot(tusk, x = "Year", y = "Tusk.kg") +
+  stat_pvalue_manual(
+    tusk.gh.test, 
+    y.position = 35, step.increase = 0.1,
+    label = "p.adj"
+    )
+
+```
 
 
 #Question 2 - 20 points 
