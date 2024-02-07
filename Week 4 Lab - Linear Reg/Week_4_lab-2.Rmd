@@ -1,0 +1,545 @@
+---
+title: "Week_4_Lab"
+author: "Sarah Roberts"
+date: "2023-01-24"
+output: html_document
+---
+
+load the libraries you need like ggplot, lmtest
+
+```{r}
+library(lmtest)
+```
+
+#1 Simple Linear Regression
+Recall that correlation explores the association between two variables, whereas linear regression describes the functional relationship between an explanatory variable and a response variable. Simple linear regression analysis is the statistical method used when both the response variable and the explanatory variable are continues variables (i.e., real numbers with decimal places).
+
+The learning goals of this section are to :
+• Recognize when to use correlation or regression
+• Practice implementing correlation and regression in R
+• Understand how to interpret the output from correlation and linear regression
+• Learn to read the diagnostic tests to evaluate the fit of the model to the data.
+
+##1.0 Linear modelling
+
+Linear modeling in R occurs primarily through two functions 'lm' and 'glm'. The first is reserved for linear regression in the form we have been discussing this week. The second function is for generalized linear models; we will discuss these in the next few weeks.
+
+**Fitting simulated data**
+
+Before working with real data, let's play around with a simulated dataset, so you can see how the values used to simulate the data are reflected in the parameter estimates themselves.
+
+```{r}
+n<-30
+X<-seq(1,n) #a stand in for some covariate
+value<-c()
+intercept<-0.15
+slope<--2.2
+sigma<-10
+for (i in 1:length(X))
+{
+  value<-c(value,rnorm(1,mean=intercept+slope*X[i],sd=sigma))
+}
+fit<-lm(value~X)
+summary(fit)
+```
+
+Rerun this several times. Notice how the estimates for slope and intercept bounce around, but they should be correct *on average* and also the scale of variation from one run to the next should make sense given the estimate of the standard error. (Their standard deviation should be the standard error.) Notice also that as you increase sigma, the R2 goes down because now you are increasing the variation that is *not* explained by the covariate. Try changing the number of samples drawn, either by extending the vector of the covariates or by drawing multiple times for each value (you will have to modify the code to make this latter change work). Notice how the standard errors on the intercept and slope coefficients gets smaller as the data set gets larger but the estimate for sigma does not. The parameter sigma is a property of the underlying population, not a property of the sample drawn, so it does not get smaller as you increase the number of samples in the dataset. (If this does not make sense, ask me!)
+
+We can use this simple model to define some common (and often confusing) terms used in regression (and later, ANOVA), which will require using the function "residuals" to pull out the difference between each point and the best-fit line.
+
+The *mean squared error* is 
+
+```{r}
+mean(residuals(fit)^2)
+```
+
+while the *root mean squared error* is
+
+```{r}
+sqrt(mean(residuals(fit)^2))
+```
+
+which is just the square-root of the mean squared error above.
+
+The *residual sum of squares* is
+
+```{r}
+sum(residuals(fit)^2)
+```
+
+and the *residual standard error* is
+
+```{r}
+sqrt(sum(residuals(fit)^2)/(n-2))
+```
+
+This last term is the most confusing at first, but the residual standard error is taking the data you have as a sample from the larger population and trying to estimate the standard error from the larger population. So it takes the residual sum of squares, divides that by the degrees of freedom (we have 30 data points, we lost 2 degrees of freedom, so we are left with 28 degrees of freedom for the estimation of the residual standard error) and then takes the square root. We can think of the mean squared error as being the total variance divided by the sample size but this underestimates the population variance (for the same reason that when calculating tghe sample variance we have to divide by n-1), so in this case
+
+```{r}
+mean(residuals(fit)^2)*(n/(n-2))
+```
+
+is our estimate of what the true variance is, which should come close to what we used to generate the data ($\sigma=10$ so $\sigma^{2}=100$). (If you go back and change the code to use a larger number of data points, the estimate will be closer.)
+
+##1.1 Linear Correlation
+Now lets run a linear model on real data.
+Download the dataset TreePlots.csv, which consists of data from 73 1-ha tree plots. The dataset includes a number of variables related to tree inventory, including: Plot (plot ID), mDBH.cm (mean DBH of trees in cm), mBA.cm2 (mean Basal area in cm2), mWD.g.m3 (mean wood density in g m-3), mH.m (mean height in m), AGBH.Mg.ha (aboveground biomass in Mg ha-1, and Trees (number of trees).
+
+```{r}
+tdat <-read.csv("Data/TreePlots.csv", header=T)
+```
+
+To get a look at the data, we can dispense with all the histograms and scatter plots that we have been graphing one-by-one, and use the pairs() command to get a matrix of scatterplots of all the different variables. This provides bivariate scatterplots for all combinations of variables.
+
+```{r}
+pairs(tdat)
+```
+We can spruce up this graph and get even more information on the data using ggplot2 and the function ggpairs, but you may need to install the GGally package. ggpairs is quite flexible, and will make color graphs if there is a categorical variable in the dataframe.
+
+```{r}
+theme_set(theme_bw())
+ggpairs(tdat[c(3,4,5,6)])
+
+```
+Study the plots and you should be able to get a good sense of the relationship between the different variables. These plots also provide the correlation coefficients for the relationship between each of the variables - the number in the upper right-hand panels of the figure. We can verify this, by running a correlation on two of the variables, such as mean height and mean wood density
+
+```{r}
+cor1 <- tdat %>% cor_test(mH.m, mWD.g.m3)
+cor1
+
+#this is the same as using 
+cor(tdat$mH.m, tdat$mWD.g.m3)
+```
+Let’s plot these two variables. In the first plot, the data point with the tallest mean tree height seems like it might be having a lot of influence on this correlation. In a second plot, we take it out and try again.
+
+```{r}
+
+tdat %>% ggplot(aes(x = mH.m, y = mWD.g.m3)) + geom_point()
+
+tdat %>% filter(mH.m <22) %>% ggplot(aes(x = mH.m, y = mWD.g.m3)) + geom_point()
+
+
+```
+and look at the correlation without that point 
+
+```{r}
+tdat %>% filter(mH.m <22) %>% cor_test(mH.m, mWD.g.m3)
+```
+
+Let’s try calculate the correlation coefficient by “hand”.
+
+```{r}
+tdat.short <- tdat %>% filter(mH.m <22)
+zx <- (tdat.short$mH.m - mean(tdat.short$mH.m))/(sd(tdat.short$mH.m))
+zy <- (tdat.short$mWD.g.m3 - mean(tdat.short$mWD.g.m3))/(sd(tdat.short$mWD.g.m3))
+scp <- sum(zx * zy)
+r <- scp/(length(zx)-1)
+r
+```
+
+##1.2 Linear Regression
+Now let’s do a linear regression on tree height and aboveground biomass. Our hypothesis is that plots with greater mean height of trees have greater biomass. (You don’t have to be a genius to figure that out, but let’s proceed anyway.) Below, run the model, then test the H0 : mH.m = 0, then plot the data.
+
+```{r}
+lm1 <- lm(AGBH.Mg.ha ~ mH.m, data = tdat)
+summary(lm1)
+
+```
+Let’s work through the information from summary piece-by-piece.
+
+1. Call repeats the function call to the lm() function.
+
+2. Residuals displays a five-number summary of the model residuals. This is the output obtained from applying the quantile() function to the residuals. 
+For example, take the case of Plot 1, where the observed biomass, AGBH.Mg.ha, is 157.45 and the observed mean height, mH.m is 14.90. Plug the height value into our regression formula:
+
+$$\hat{y} = −499.926 + 45.704 × 14.90 = 181.09$$
+
+And, the residual would be 181.09 − 157.45 = −23.64. To get all the residuals for the model, use residuals(lm1) or lm1$residuals.
+
+3. Coefficients contains the parameter estimates from the regression model. In this case, they are the y-intercept and slope of the regression line. The estimated model (rounded to 2 decimal places) is:
+$$\hat{y_{i}} = −499.94 + 45.70 × mH.m_{i}$$
+We can use the equation to calculate the fitted values – the values for an output variable that have been predicted by a model fitted to a set of data.
+
+```{r}
+y.fitted <- lm1$coefficient[1] + lm1$coefficient[2]*tdat$mH.m
+```
+
+This should produce the same numbers as lm1$fitted. To check that they are the same, let’s run a correlation between them:
+
+```{r}
+cor(y.fitted, lm1$fitted)
+
+```
+
+Because the coefficient, mH.m, is positive the model predicts that aboveground biomass will increase as tree height increases. Every meter in additional height will lead to a 45.70 Mg ha-1 increase in biomass. The intercept in this model is not interpretable. Technically it represents the biomass of a plot when the average height of trees is 0. The model predicts a negative biomass when trees have a height of 0, which is nonsensical. In discussing the intercept we are extrapolating beyond the range of data that are possible, one of the no-no’s in regression analysis. 
+
+The standard error is an estimate of the variations of the coefficient.
+
+The t-statistic is the coefficient divided by its standard error.The t-statistic is a measure of the precision with which the regression coefficient is measured. A coefficient with a comparatively small standard error, is more reliable than one with a comparatively large standard error.
+
+The p-value for each coefficient tests the null hypothesis that the coefficient is equal to zero (no effect). 
+
+4. Residual Standard Error, $\hat{\sigma}$, is the square root of the sum of the squared residuals divided by their degrees of freedom, where n is the number of observations and p is the number of estimated regression parameters (73 − 2 = 71, in this example).
+
+When the residual standard error is 0, then the model fits the data perfectly (likely due to overfitting). If the residual standard error cannot be shown to be significantly different from the variability in the null model, then there is little evidence that the linear model has any predictive ability.
+
+Multiple R-squared is the coefficient of determination: the proportion of the variation in the response that is explained by the regression. Here 39.5% of the variation in aboveground biomass is explained by its linear relationship to mean tree height. R2 compares the amount of unexplained variation before and after a regression model is fit. The before variation is the sum of squares total (SST).
+
+Having fit the regression, the model we obtain replaces the sample mean as the best predictor of an individual observation.
+
+The adjusted R-square introduces a penalty term for each regressor (independent variable) in the R2 calculation. Without this adjustment, R2 will usually increase (at least a little) with each additional regressor; and thus we will always end up choosing the most complicated model as the best model. The penalty in the adjusted R2 is chosen to yield an unbiased estimate of the population R2, and works along the same principal as the AIC, which we will talk about later.
+
+The rest of the output (F statistic, p-value) summarizes the ANOVA results: The small p-value tells us that our regression model explains a significant part of the variation in the data. It tests our alternative hypothesis (tree height is related to biomass) against the null hypothesis (tree height has no effect on biomass). In a simple model like this, the ANOVA table does not provide much information different from the lm() output. However, ANOVA tables can be useful for comparing more sophisticated models.
+
+```{r}
+anova(lm1)
+```
+
+confidence intervals: 
+we can calculate confidence intervals for our regression coefficient using the confint() function. 
+```{r}
+confint(lm1, 'mH.m', level=0.95)
+```
+Lets do this by hand also 
+```{r}
+y <- tdat$AGBH.Mg.ha
+x <- tdat$mH.m
+n <- length(tdat$AGBH.Mg.ha) # Find sample size
+b1 <- lm1$coefficients[2] #slope coefficient
+y.fitted <- lm1$fitted.values # Extract the fitted values of y 
+ 
+
+# Find SSE and MSE
+  sse <- sum((y - y.fitted)^2)
+  mse <- sse / (n - 2)
+  
+  t.val <- qt(0.975, n - 2) # Critical value of t
+  
+b1.conf.upper <- b1 + t.val * sqrt(mse) / sqrt(sum((x - mean(x))^2))
+  b1.conf.lower <- b1 - t.val * sqrt(mse) / sqrt(sum((x - mean(x))^2))
+  
+  b1.conf.upper
+  b1.conf.lower
+```
+
+Since this confidence interval doesn’t contain the value 0, we can conclude that there is a statistically significant association between mH.m and biomass.
+
+The 95% confidence interval (CI) is the likely range of the true coefficient. The confidence interval reflects the amount of random error in the sample and provides a range of values that are likely to include the unknown parameter.
+
+Important: If the confidence interval contains the value zero, it means that there's a 95% chance that the true coefficient equals zero. But, a zero coefficient corresponds to the null hypothesis we were looking to reject in the first place. So if the confidence interval contains zero, we can no longer reject the null hypothesis and cannot trust the coefficient value given by the regression. In practice, when the confidence interval contains zero, then the p-value is usually large, so we cannot reject the null hypothesis anyway.
+
+###1.2.1 Report results 
+For the above example, we might say: Average tree height in forest plots significantly increase plot-level biomass, with a 1 m increase in average tree height resulting in a 45.70 Mg ha-1 increase in plot biomass (R2 = 0.386, F(1,71) = 46.34, p < 0.001).
+
+
+
+
+
+
+  
+
+###1.2.2 Plotting results 
+#####sidenote - making your own theme
+When you publish a manuscript, you usually want all of your figures to look similar. One easy way to do this is by creating your own theme that you can then add on to the end of your ggplot figures. This is my theme I use, but feel free to change it for yourself 
+
+```{r}
+
+theme_Publication <- function(base_size=10, base_family="Arial") {
+  
+  (theme_foundation(base_size=base_size, base_family=base_family)
+   + theme(plot.title = element_text(hjust = 0.5),
+           text = element_text(),
+           panel.background = element_rect(colour = NA),
+           plot.background = element_rect(colour = NA),
+           panel.border = element_rect(colour = NA),
+           axis.title = element_text(size = rel(1)),
+           axis.title.y = element_text(angle=90,vjust =2),
+           axis.text = element_text(), 
+           axis.line = element_line(colour="black"),
+           axis.ticks = element_line(),
+           panel.grid.major = element_line(colour="#f0f0f0"),
+           panel.grid.minor = element_blank(),
+           legend.key = element_rect(colour = NA),
+           legend.position = "right",
+           legend.title = element_text(face="italic"),
+           strip.background=element_rect(colour="#f0f0f0",fill="#f0f0f0")
+   ))
+  
+}
+```
+We can now add a linear regression line to a scatter lot. This is the line that is drawn by ordinary least squares (OLS). 
+
+I will show you two ways to plot, one using the package extension ggformula, and the second using just ggplot
+
+We can use the function stat_smooth and the argument method=lm to tell it to draw the line that we calculated from a linear model. This will draw the confidence interval around the line based on the regression 
+
+Plotting - notice stat_smooth in ggplot adds in confidence intervals
+```{r}
+#ggformula
+gf_point(AGBH.Mg.ha ~ mH.m, data=tdat) %>% 
+  gf_lm() +
+  labs(y="Biomass", x="Tree Height") + theme_Publication()
+
+#ggplot
+tdat %>% ggplot(aes(x = mH.m, y = AGBH.Mg.ha)) +
+  geom_point()+
+  labs(y="Biomass", x="Tree Height") + theme_Publication()+
+  stat_smooth(method=lm)
+
+```
+Confidence intervals around the regression line:
+
+Recall in class that we discussed the difference between confidence intervals and prediction intervals. Confidence intervals are asking about how confident we are that the line we drew is the true population line (i.e the mean value at any value of x)
+
+We can calculate that in R for the mean tree height of 18
+
+```{r}
+predict(lm1, newdata = data.frame("mH.m" = 18),
+        interval = "confidence",
+        level = 0.95)
+```
+
+This is saying we're 95% confident that the true average biomass of plots with tree heights of 18 is between 295 and 349. Compare this to the prediction interval 
+
+```{r}
+
+predict(lm1, newdata = data.frame("mH.m" = 18),
+        interval = "prediction",
+        level = 0.95)
+```
+that is much wider. 
+
+You can calculate those intervals across the whole dataset 
+```{r}
+conf <- as.data.frame(predict(lm1, newdata = tdat,
+        interval = "confidence",
+        level = 0.95))
+
+conf$mH.m <- tdat$mH.m
+
+pred <- as.data.frame(predict(lm1, newdata = tdat,
+        interval = "prediction",
+        level = 0.95))
+
+pred$mH.m <- tdat$mH.m
+```
+
+The 95% CI we calculated above reflects our confidence only in the average relationship—the regression line itself. The 95% CI can be said to convey our inferential uncertainty, since it conveys our confidence in our estimate of the regression relationship. However, there is scatter around this line, and because the PI applies to a prediction for a new point (our forest plot with known average tree height but unknown biomass) the 95% PI needs to include this predictive uncertainty as well. The predictive uncertainty reflects the degree of scatter around the line as quantified by the residual variance (residual or error mean square). 
+
+Let's plot them both together 
+```{r}
+tdat %>% ggplot(aes(x = mH.m, y = AGBH.Mg.ha)) +
+  geom_point() +
+  geom_smooth(method = 'lm') +
+  geom_line(data = conf,
+            aes(x = mH.m, y = lwr), color = "red") +
+  geom_line(data = conf,
+            aes(x = mH.m, y = upr), color = "red") +
+  geom_line(data = pred,
+            aes(x = mH.m, y = lwr), color = "blue") + 
+  geom_line(data = pred,
+            aes(x = mH.m, y = upr), color = "blue")
+```
+
+####1.2.2.2 Add Equation
+Lets add the equation to the plot - note there are a lot of different ways to do this
+
+```{r}
+tdat %>% ggplot(aes(x = mH.m, y = AGBH.Mg.ha)) +
+  geom_point()+
+  labs(y="Biomass", x="Tree Height") + theme_Publication()+
+  stat_smooth(method=lm) +
+  stat_poly_eq(aes(label = paste(after_stat(eq.label),
+                                 after_stat(rr.label), sep = "*\", \"*"), colour = "red")) 
+```
+
+
+
+
+###In class Assessment: 
+Upload after class - upload the regression plot with the equation (above) as a jpeg, but add your name as the title. Change the color of the confidence intervals around the regression line and add green prediction intervals. 
+
+
+
+If you are interested, we can calculate all of those confidence intervals and prediction intervals by hand
+
+```{r}
+x <- tdat$mH.m
+y <-  tdat$AGBH.Mg.ha
+pred.x <- tdat$mH.m
+
+  n <- length(y) # Find sample size
+  lm.model <- lm(y ~ x) # Fit linear model
+  y.fitted <- lm.model$fitted.values # Extract the fitted values of y
+  
+  # Coefficients of the linear model, beta0 and beta1
+  b0 <- lm.model$coefficients[1]
+  b1 <- lm.model$coefficients[2]
+  
+  pred.y <- b1 * pred.x + b0 # Predict y at the given value of x (argument pred.x)
+  
+  # Find SSE and MSE
+  sse <- sum((y - y.fitted)^2)
+  mse <- sse / (n - 2)
+  
+  t.val <- qt(0.975, n - 2) # Critical value of t
+  
+  mean.se.fit <- (1 / n + (pred.x - mean(x))^2 / (sum((x - mean(x))^2))) # Standard error of the mean estimate
+  pred.se.fit <- (1 + (1 / n) + (pred.x - mean(x))^2 / (sum((x - mean(x))^2))) # Standard error of the prediction
+  
+  # Mean Estimate Upper and Lower Confidence limits at 95% Confidence
+  mean.conf.upper <- pred.y + t.val * sqrt(mse * mean.se.fit)
+  mean.conf.lower <- pred.y - t.val * sqrt(mse * mean.se.fit)
+  
+  # Prediction Upper and Lower Confidence limits at 95% Confidence
+  pred.conf.upper <- pred.y + t.val * sqrt(mse * pred.se.fit)
+  pred.conf.lower <- pred.y - t.val * sqrt(mse * pred.se.fit)
+  
+  # Beta 1 Upper and Lower Confidence limits at 95% Confidence
+  b1.conf.upper <- b1 + t.val * sqrt(mse) / sqrt(sum((x - mean(x))^2))
+  b1.conf.lower <- b1 - t.val * sqrt(mse) / sqrt(sum((x - mean(x))^2))
+  
+```
+
+##1.3 Assumptions
+When conducting any statistical analysis it is important to evaluate (i) how well the model fits the data; and, (ii) that the data meet the assumptions of the model. There are numerous ways to do this and a variety of statistical tests to evaluate deviations from model assumptions. Generally, we examine diagnostic plots after running regression models, as we did for ANOVA. See the below description of the diagnostic tests
+
+```{r}
+plot(lm1)
+```
+
+Residuals vs Fitted. Used to check the linear relationship assumptions. A horizontal line, without distinct patterns is an indication for a linear relationship, which is good. Points should be randomly scattered around the centerline. Any pattern indicates either violation of linearity or homoscedasticity.
+
+The second plot is a q-q plot, which we have already used to evaluate the normality of a variable. Significant departures from the line suggest violations of normality. If the pattern were S-shaped or banana shaped, we would need a different model. You can also perform a Shapiro-Wilk test of normality with the shapiro.test() function, but be careful. Against better judgment, in the past we have used the shapiro.test() to assess normality. Remember that no test will show that your data has a normal distribution. Normality statistics show when your data is sufficiently inconsistent with a normal distribution that you would reject the null hypothesis of “no difference from a normal distribution”. However, when the sample size is small, even big departures from normality are not detected, and when the sample size is large, even the smallest deviation from normality will lead to a
+rejected null. In other words, if we have enough data to fail a normality test, we always will because real-world data won’t be clean enough. See (http://www.r-bloggers.com/normality-and-testing-for-normality/) for an example with simulated data. So, where does that leave us? Explore your data for large deviations from normality and make sure to assess heteroscedasticity and outliers. But, don’t get too hung up on whether your data are normally distributed or not. As the author of the above link suggests: “When evaluating and summarizing data, rely mainly on your brain and use statistics to catch really big errors in judgment.”
+
+The third plot is a plot of standardized residuals versus the fitted values. It repeats the first plot, but on a different scale. It shows the square root of the standardized residuals (where all the residuals are positive). If there was a problem, the points would be distributed inside a triangular shape, with the scatter of the residuals increasing as the fitted values increase. This plot is used to check the homogeneity of variance of the residuals (homoscedasticity). Horizontal line with equally spread points is a good indication of homoscedasticity. This is not the case in our example, where we have a heteroscedasticity problem.  A possible solution to reduce the heteroscedasticity problem is to use a log or square root transformation of the outcome variable (y). We can also check this with the non-constant error variance test in the car package (which is the Breusch-Pagan test) or the Breusch-Pagan package which allows you to specify a studentized version (which is more robust). Note these two tests show differing p-values. The first one assumes the errors are normally distributed. The studentized one will "studentise" the test statistic and leads to asymptotically correct significance levels for a reasonably large class of distributions for the errors. You need to make a decision based on the normality of your residuals and the plots. 
+
+```{r}
+library(car)
+ncvTest(lm1)
+bptest(lm1, studentize = F)
+bptest(lm1, studentize = T)
+
+```
+The null hypothesis states that there is constant variance. Thus, if you get a pvalue > 0.05, you would fail to reject the null. 
+
+
+The fourth plot is a residuals-leverage plots that shows Cook’s distance for each of the observed values. Cook’s distance measures relative change in the coefficients as each replicate is deleted. The point is to highlight those yi (response) values that have the biggest effect on parameter estimates. The idea is to verify that no single data point is so influential that leaving it out changes the structure of the model. The potential  trouble points are labeled. A general rule of thumb is that an observation has high influence if Cook’s distance exceeds 4/(n - p - 1)(P. Bruce and Bruce 2017), where n is the number of observations and p the number of predictor variables.
+
+If you want to look at these top 3 observations with the highest Cook’s distance in case you want to assess them further, type this R code:
+
+```{r}
+library(broom)
+model.diag.metrics <- augment(lm1)
+head(model.diag.metrics)
+model.diag.metrics %>%
+  top_n(3, wt = .cooksd)
+```
+
+The Residuals vs Leverage plot can help us to find influential observations if any. On this plot, outlying values are generally located at the upper right corner or at the lower right corner. Those spots are the places where data points can be influential against a regression line.
+
+
+In the diagnostic plots for our model, both the Scale-Location and Residuals vs. Leverage plots show points scattered away from the center, suggesting that some points have excessive leverage. Another pattern is that points 25, 43, and 63 stick out in nearly every plot. This warns us that something could be odd with those observations. We might want to redo the analysis without those points (tree plots) and see if our inference changes, we may want to consider a transformation. 
+
+To check the assumption of independence, you can use the Durbin Watson test. The null hypothesis states that the errors are not auto-correlated with themselves (they are independent). Thus, if we achieve a p-value > 0.05, we would fail to reject the null hypothesis. This would give us enough evidence to state that our independence assumption is met!
+
+```{r}
+durbinWatsonTest(lm1)
+```
+Looks like our independence assumption is met. 
+
+You can feel free to stop here, but if the results from a linear model in r seem a bit "black boxy", work through the next section. 
+
+#2 Calculating linear model results by hand 
+**Fitting real data**
+
+I want to show you how to calculate the components of lm by hand. We will run through some examples using a dataset on Old Faithful eruptions. The dataset is built into the MASS library, so we just have to load it.
+
+```{r}
+library(MASS)
+attach(faithful) #A rare exception to the rule of avoiding 'attach'
+head(faithful)
+plot(waiting, eruptions,pch=16)
+```
+
+This dataset lists the times of an Old Faithful eruption as a function of the waiting time prior to the eruption.
+
+We can see that as the waiting time increases, so does the length of the eruption. We can fit a linear regression model to this relationship using the R function 'lm'.
+
+```{r}
+eruption.lm<-lm(eruptions~waiting)
+```
+
+We print out a summary of the linear regression results as follows:
+
+```{r}
+summary(eruption.lm)
+```
+
+We can check the output on the residuals using either the R function 'residuals' which takes in the lm object and spits out the residuals of the fit
+
+```{r}
+quantile(residuals(eruption.lm),probs=c(0.0,0.25,0.5,0.75,1.0))
+```
+
+or by using the R function 'predict' (which calculates the predicted y value for each x value) and calculating the residuals ourselves:
+
+```{r}
+residuals<-eruptions-predict(eruption.lm, data.frame(waiting))
+# Note that predict wants a dataframe of values
+quantile(residuals,probs=c(0.0,0.25,0.5,0.75,1.0))
+```
+
+Now we can calculate the slope and its standard error:
+
+```{r}
+x<-waiting
+y<-eruptions
+SSXY<-sum((x-mean(x))*(y-mean(y)))
+SSX<-sum((x-mean(x))*(x-mean(x)))
+slope.est<-SSXY/SSX
+#Also could have used slope.est<-cov(x,y)/var(x)
+n<-length(x)
+residuals<-residuals(eruption.lm)
+var.slope<-(1/(n-2))*sum((residuals-mean(residuals))*(residuals-mean(residuals)))/SSX
+s.e.slope<-sqrt(var.slope)
+```
+
+```{r}
+slope.est
+```
+
+```{r}
+s.e.slope
+```
+
+We calculate the t-value as:
+
+```{r}
+t.value<-slope.est/s.e.slope
+p.value<-2*(1-pt(abs(t.value),n-2))
+t.value
+p.value
+```
+
+We can calculate the intercept and its standard error in a similar manner.
+
+The residual standard error is:
+
+```{r}
+residual.se<-sqrt((1/(n-2))*sum((residuals-mean(residuals))*(residuals-mean(residuals))))
+residual.se
+```
+
+and the R2 as
+
+```{r}
+SST<-sum((y-mean(y))*(y-mean(y)))
+SSR<-SST-sum(residuals*residuals)
+R2<-SSR/SST
+R2
+```
+
+
+
