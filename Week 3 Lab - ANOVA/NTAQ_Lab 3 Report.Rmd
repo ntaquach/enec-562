@@ -181,28 +181,33 @@ Results showed that antibiotic treatment (p = `r dlabs_aov$p[dlabs_aov$Effect ==
 4. Post-hoc test result:
 
 ```{r message=F, warning=F, results=F}
-dlabs_pwc <- dlabs %>% 
-  pairwise_t_test(
-    results ~ antibiotic, paired = TRUE,
-    p.adjust.method = "bonferroni"
-    )
-dlabs_pwc
+dlab_tukey <- dlabs %>% tukey_hsd(results ~ antibiotic + lab)
+dlab_tukey
 ```
-Pair-wise comparison showed that the average levels of antibodies were different among:
+Tukey HSD testn showed that the average levels of antibodies were different among:
 
-a. Antibiotic 1 and 3 (p = `r dlabs_pwc$p.adj[dlabs_pwc$group1 == 1 & dlabs_pwc$group2 == 3]`)
+a. Antibiotic 1 and 3 (p = `r dlab_tukey$p.adj[dlab_tukey$term == "antibiotic" & dlab_tukey$group1 == 1 & dlab_tukey$group2 == 3]`)
 
-b. Antibiotic 1 and 4 (p = `r dlabs_pwc$p.adj[dlabs_pwc$group1 == 1 & dlabs_pwc$group2 == 4]`)
+b. Antibiotic 1 and 4 (p = `r dlab_tukey$p.adj[dlab_tukey$term == "antibiotic" & dlab_tukey$group1 == 1 & dlab_tukey$group2 == 4]`)
 
-c. Antibiotic 2 and 4 (p = `r dlabs_pwc$p.adj[dlabs_pwc$group1 == 2 & dlabs_pwc$group2 == 4]`)
+c. Antibiotic 2 and 3 (p = `r dlab_tukey$p.adj[dlab_tukey$term == "antibiotic" & dlab_tukey$group1 == 2 & dlab_tukey$group2 == 3]`)
+
+d. Antibiotic 2 and 4 (p = `r dlab_tukey$p.adj[dlab_tukey$term == "antibiotic" & dlab_tukey$group1 == 2 & dlab_tukey$group2 == 4]`)
+
+e. Antibiotic 3 and 4 (p = `r dlab_tukey$p.adj[dlab_tukey$term == "antibiotic" & dlab_tukey$group1 == 3 & dlab_tukey$group2 == 4]`)
 
 ```{r message=F, warning=F, results=F}
-dlabs_pwc <- dlabs_pwc %>% add_xy_position(x = "antibiotic", step.increase = 1)
-dlabs$antibiotic = as.factor(dlabs$antibiotic)
-ggboxplot(dlabs, x = "antibiotic", y = "results") +
-  stat_pvalue_manual(dlabs_pwc, hide.ns = T, label =NULL) +
-  labs(
-    subtitle = get_test_label(dlabs_aov, detailed = T),
-    caption = get_pwc_label(dlabs_pwc)
-    )
+mean_results <- dlabs %>%
+  group_by(lab, antibiotic) %>%
+  summarize(mean_results = mean(results)) %>% arrange(antibiotic)
+mean_results
+
+
+# Plot line graph of mean_results
+ggplot(mean_results, aes(x = antibiotic, y = mean_results, color = lab, group = lab)) +
+  geom_point() +
+  geom_line() +
+  labs(x = "Antibiotic", y = "Mean Results") +
+  scale_color_discrete(name = "Lab") +
+  theme_minimal()
 ```

@@ -1,0 +1,23 @@
+---
+title: "Week_4_Problem_Set"
+author: "Sarah Roberts"
+date: "2023-01-24"
+output: html_document
+---
+#Questions - 20 points per regression (40 points total)
+Your assignment is to conduct two different linear regressions on the TreePlots.csv data: (1) mean tree diameter (mDBH.cm) versus mean height (mH.m), and (2) mean height (mH.m) versus mean wood density (mWD.g.m3). In the first regression, diameter should be your dependent variable. In the second regression, mean height should be your dependent variable. Consider the effect of outliers and examine your qqplots when checking the assumptions of your model. For each regression, write a 1-page description of your analysis, results, and inference. The write-up should include the following information:
+
+
+• Null and alternative hypotheses - 2.5
+• Results of your statistical model(s), interpreting your model in 2-3 sentences that include the appropriate
+reporting of the statistics - 2.5
+• An interpretation of the regression model (equation) from the analysis (e.g. how mean height varies with different levels of wood density). 5
+• Include an appropriate figure with the equation. Plot your confidence intervals and prediction intervals. 5
+• A description of how you checked the assumptions of your statistical test, and if you decided to re-run your model after analyzing your diagnostic figures - 2.5
+• An interpretation of diagnostic figures (in an appendix) - 2.5
+
+Again, upload your .Rmd separately, and make sure to add comments to your code. 
+
+
+#Normality comment 
+Against better judgment, in the past we have used the shapiro.test() to assess normality. Remember that no test will show that your data has a normal distribution. Normality statistics show when your data is sufficiently inconsistent with a normal distribution that you would reject the null hypothesis of “no difference from a normal distribution”. However, when the sample size is small, even big departures from normality are not detected, and when the sample size is large, even the smallest deviation from normality will lead to a rejected null. In other words, if we have enough data to fail a normality test, we always will because real-world data won’t be clean enough. See (http://www.r-bloggers.com/normality-and-testing-for-normality/) for an example with simulated data. So, where does that leave us? Explore your data for large deviations from normality and make sure to assess heteroscedasticity and outliers. But, don’t get hung up on whether your data are normally distributed or not. As the author of the above link suggests: “When evaluating and summarizing data, rely mainly on your brain and use statistics to catch really big errors in judgment.”
