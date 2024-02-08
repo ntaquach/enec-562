@@ -9,6 +9,7 @@ load the libraries you need like ggplot, lmtest
 
 ```{r}
 library(lmtest)
+library(rstatix)
 ```
 
 #1 Simple Linear Regression
@@ -86,7 +87,8 @@ Now lets run a linear model on real data.
 Download the dataset TreePlots.csv, which consists of data from 73 1-ha tree plots. The dataset includes a number of variables related to tree inventory, including: Plot (plot ID), mDBH.cm (mean DBH of trees in cm), mBA.cm2 (mean Basal area in cm2), mWD.g.m3 (mean wood density in g m-3), mH.m (mean height in m), AGBH.Mg.ha (aboveground biomass in Mg ha-1, and Trees (number of trees).
 
 ```{r}
-tdat <-read.csv("Data/TreePlots.csv", header=T)
+setwd("C:/GitHub Projects/enec-562/Week 4 Lab - Linear Reg")
+tdat <-read.csv("TreePlots.csv", header=T)
 ```
 
 To get a look at the data, we can dispense with all the histograms and scatter plots that we have been graphing one-by-one, and use the pairs() command to get a matrix of scatterplots of all the different variables. This provides bivariate scatterplots for all combinations of variables.
@@ -97,6 +99,8 @@ pairs(tdat)
 We can spruce up this graph and get even more information on the data using ggplot2 and the function ggpairs, but you may need to install the GGally package. ggpairs is quite flexible, and will make color graphs if there is a categorical variable in the dataframe.
 
 ```{r}
+library(ggplot2)
+library(GGally)
 theme_set(theme_bw())
 ggpairs(tdat[c(3,4,5,6)])
 
@@ -138,7 +142,7 @@ r
 ```
 
 ##1.2 Linear Regression
-Now let’s do a linear regression on tree height and aboveground biomass. Our hypothesis is that plots with greater mean height of trees have greater biomass. (You don’t have to be a genius to figure that out, but let’s proceed anyway.) Below, run the model, then test the H0 : mH.m = 0, then plot the data.
+Now let’s do a linear regression on tree height and above ground biomass. Our hypothesis is that plots with greater mean height of trees have greater biomass. (You don’t have to be a genius to figure that out, but let’s proceed anyway.) Below, run the model, then test the H0 : mH.m = 0, then plot the data.
 
 ```{r}
 lm1 <- lm(AGBH.Mg.ha ~ mH.m, data = tdat)
@@ -275,6 +279,8 @@ We can use the function stat_smooth and the argument method=lm to tell it to dra
 
 Plotting - notice stat_smooth in ggplot adds in confidence intervals
 ```{r}
+library(ggformula)
+library(ggthemes)
 #ggformula
 gf_point(AGBH.Mg.ha ~ mH.m, data=tdat) %>% 
   gf_lm() +
@@ -345,12 +351,19 @@ tdat %>% ggplot(aes(x = mH.m, y = AGBH.Mg.ha)) +
 Lets add the equation to the plot - note there are a lot of different ways to do this
 
 ```{r}
-tdat %>% ggplot(aes(x = mH.m, y = AGBH.Mg.ha)) +
+library(ggpmisc)
+inclass_ass <- tdat %>% ggplot(aes(x = mH.m, y = AGBH.Mg.ha)) +
   geom_point()+
   labs(y="Biomass", x="Tree Height") + theme_Publication()+
-  stat_smooth(method=lm) +
+  stat_smooth(method=lm, fill = "#56a0d3", alpha = 0.5) +
   stat_poly_eq(aes(label = paste(after_stat(eq.label),
-                                 after_stat(rr.label), sep = "*\", \"*"), colour = "red")) 
+                                 after_stat(rr.label), sep = "*\", \"*"), colour = "red")) +
+  geom_line(data = pred,
+            aes(x = mH.m, y = lwr), color = "green", linewidth=1) + 
+  geom_line(data = pred,
+            aes(x = mH.m, y = upr), color = "green",  linewidth=1)
+
+ggsave("NTAQ_In class Assignment 4.jpeg", inclass_ass, width = 5, height = 4, units = "in", dpi = 300 )
 ```
 
 
