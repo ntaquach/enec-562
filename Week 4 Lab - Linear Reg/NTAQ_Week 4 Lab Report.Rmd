@@ -1,5 +1,5 @@
 ---
-title: "Week_4_Problem_Set"
+title: "Week 4 Lab Report"
 author: "Nguyen Tien Anh Quach"
 date: "`r Sys.Date()`"
 output:
@@ -13,19 +13,24 @@ indent: true
 knitr::opts_chunk$set(echo = F)
 ```
 
-#Questions - 20 points per regression (40 points total)
-Your assignment is to conduct two different linear regressions on the TreePlots.csv data: (1) mean tree diameter (mDBH.cm) versus mean height (mH.m), and (2) mean height (mH.m) versus mean wood density (mWD.g.m3). In the first regression, diameter should be your dependent variable. In the second regression, mean height should be your dependent variable. Consider the effect of outliers and examine your qqplots when checking the assumptions of your model. For each regression, write a 1-page description of your analysis, results, and inference. The write-up should include the following information:
+# Mean tree diameter vs. Mean height
+1. H~0~: There is no significant linear relationship between mean height and mean tree diameter.
 
-
-• Null and alternative hypotheses - 2.5
-1. Mean tree diameter vs. mean height
-
-H~0~: There is no significant linear relationship between mean height and mean tree diameter.
 H~a~: There is a significant linear relationship between mean height and mean tree diameter.
 
 2. Linear model result:
 
-```{r message=F, warning=F}
+```{r message=F,warning=F, results=F}
+library(ggformula)
+library(ggthemes)
+library(ggpmisc)
+library(dplyr)
+library(car)
+library(ggpubr)
+library(rstatix)
+```
+
+```{r message=F, warning=F, results=F}
 setwd("C:/GitHub Projects/enec-562/Week 4 Lab - Linear Reg")
 
 tree <- read.csv("TreePlots.csv") #load data
@@ -35,18 +40,241 @@ tree <- read.csv("TreePlots.csv") #load data
 height_diam <- lm(mDBH.cm ~ mH.m, data=tree)
 summary(height_diam)
 ```
-Mean tree height in forest plots has a significantly positive linear relationship with mean tree diameter. With a 1 m increase in mean  tree height resulting in a 1.86 cm  increase in mean tree diameter (R$^2$ = 0.95, Adj. R$^2$ = 0.95, F(1,71) = 1286, p < 0.001). 
+Mean tree height in forest plots has a significantly positive linear relationship with mean tree diameter (Fig. 1). With a 1 m increase in mean  tree height resulting in a 1.86 cm  increase in mean tree diameter (R$^2$ = 0.95, Adj. R$^2$ = 0.95, F(1,71) = 1286, p < 0.001). The regression equation is : 
+$$\hat{y_{i}} = -8.08 + 1.86 \times mH.m_{i}$$ 
+
+One thing to notice is that the intercept of the linear model is -8.08, which means that when the mean tree diameter is 0, the mean height of the tree is -8.08 m. This is not realistic!
+
+3. Checking assumptions:
+
+**a. Linearity**
+
+Residual plot showed that the residuals of most data points are randomly and closely scattered around the center line (Fig. 2). Linearity assumption is met!
+
+**b. Normality**
+
+QQ plot showed that most data points are randomly and closely scattered around the normality line (Fig. 3). Therefore, normality assumption is met!
+
+**c. Constant variance**
+
+```{r message=F, warning=F, results=F}
+ncv <- ncvTest(height_diam)
+ncv
+```
+The test for non-constant variance reported an insignificant result (p = `r round(ncv$p, 2)`). Therefore, we failed to reject the null hypothesis and the assumption of homoscedasticity is met!
+
+**d. Independence**
+```{r message=F, warning=F, results=F}
+inde <- durbinWatsonTest(height_diam)
+inde
+```
+The Durbin-Watson reported an insignificant result (p = `r round(inde$p, 2)`). Therefore, we failed to reject the null hypothesis and the assumption of independence is met!
 
 
-• Results of your statistical model(s), interpreting your model in 2-3 sentences that include the appropriate
-reporting of the statistics - 2.5
-• An interpretation of the regression model (equation) from the analysis (e.g. how mean height varies with different levels of wood density). 5
-• Include an appropriate figure with the equation. Plot your confidence intervals and prediction intervals. 5
-• A description of how you checked the assumptions of your statistical test, and if you decided to re-run your model after analyzing your diagnostic figures - 2.5
-• An interpretation of diagnostic figures (in an appendix) - 2.5
+# Mean tree height vs. Mean wood density
+1. H~0~: There is no significant linear relationship between mean height and mean wood density.
 
-Again, upload your .Rmd separately, and make sure to add comments to your code. 
+H~a~: There is a significant linear relationship between mean height and mean wood density.
+
+2. Linear model results:
+
+```{r message=F, warning=F, results=F}
+#run model
+height_density <- lm(mH.m ~ mWD.g.m3, data=tree)
+summary(height_density)
+```
+
+Mean wood density in forest plots has a significantly positive linear relationship with mean tree height (Fig. 4). With a 1 g/m$^3$ increase in mean wood density resulting in a 11.24 m  increase in mean tree diameter (R$^2$ = 0.23, Adj. R$^2$ = 0.24, F(1,71) = 22.27, p < 0.001). The regression equation is : 
+$$\hat{y_{i}} = 10.11 + 11.24 \times mWD.g.m3_{i}$$ 
+One thing to notice and check later on is the low R-squared value, which is only 0.24. This could be due to outliers and/or high residuals.
+
+3. Checking assumptions:
+
+**a. Linearity**
+
+Residual plot showed that the residuals of most data points are randomly and closely scattered around the center line (Fig. 5). However, point 60 is potentially the extreme outlier.
+
+**b. Normality**
+
+```{r message=F, warning=F, results=F}
+density_normality <- shapiro.test(residuals(height_density))
+density_normality
+```
+
+
+QQ plot showed that most data points are randomly and closely scattered around the normality line (Fig. 6). Several outliers are shown. I tested the normality of the residuals and p-value was reported to be significant, which was `r round(density_normality$p,2)`. Therefore, normality assumption is met!
+
+**c. Constant variance**
+
+```{r message=F, warning=F, results=F}
+ncv_density <- ncvTest(height_density)
+ncv_density
+```
+The test for non-constant variance reported an significant result (p = `r round(ncv_density$p, 2)`). Therefore, we rejected the null hypothesis and the assumption of homoscedasticity is NOT met!
+
+**d. Independence**
+```{r message=F, warning=F, results=F}
+inde_density <- durbinWatsonTest(height_density)
+inde_density
+```
+The Durbin-Watson reported an insignificant result (p = `r round(inde_density$p, 2)`). Therefore, we failed to reject the null hypothesis and the assumption of independence is met!
+
+As the constant variance assumption is NOT met, there may be outliers that need to be removed.
+
+**Detecting outliers:** 
+
+```{r message=F, warning=F, results=F}
+tree %>% identify_outliers(mWD.g.m3) # 126 and 192 trees are extreme outliers
+
+new_tree <- tree %>% filter(!(Trees %in% c(126, 192))) #filter two extreme outliers
+
+```
+
+The original dataset had 5 outliers, among which two are extreme outliers. I removed the extreme outliers and conducted the regression analysis again.
+
+```{r message=F, warning=F, results=F}
+#run model
+new_height_density <- lm(mH.m ~ mWD.g.m3, data=new_tree)
+summary(new_height_density)
+```
+
+```{r message=F, warning=F, results=F}
+## normality
+new_density_normal <- shapiro.test(residuals(new_height_density))
+
+## constant variance
+new_ncv_density <- ncvTest(new_height_density)
+new_ncv_density
+
+##independence
+new_density_inde <- durbinWatsonTest(new_height_density)
+
+```
+
+Mean wood density in forest plots still has a significantly positive linear relationship with mean tree height. With a 1 g/m$^3$ increase in mean wood density resulting in a 6.60 m  increase in mean tree diameter (R$^2$ = 0.07, Adj. R$^2$ = 0.06, F(1,69) = 5.319, p= 0.02). The regression equation is : 
+$$\hat{y_{i}} = 12.86 + 6.60 \times mWD.g.m3_{i}$$ 
+
+I also checked the assumptions, which are now all met. P-values are listed below:
+
+1. Normality: p = `r round(new_density_normal$p, 2)`.
+
+2. Constant variance: p = `r round(new_ncv_density$p, 2)`.
+
+3. Independence: p = `r round(new_density_inde$p, 2)`.
+
+4. Linearity: QQplot looks normal (Fig. 7).
 
 
 #Normality comment 
 Against better judgment, in the past we have used the shapiro.test() to assess normality. Remember that no test will show that your data has a normal distribution. Normality statistics show when your data is sufficiently inconsistent with a normal distribution that you would reject the null hypothesis of “no difference from a normal distribution”. However, when the sample size is small, even big departures from normality are not detected, and when the sample size is large, even the smallest deviation from normality will lead to a rejected null. In other words, if we have enough data to fail a normality test, we always will because real-world data won’t be clean enough. See (http://www.r-bloggers.com/normality-and-testing-for-normality/) for an example with simulated data. So, where does that leave us? Explore your data for large deviations from normality and make sure to assess heteroscedasticity and outliers. But, don’t get hung up on whether your data are normally distributed or not. As the author of the above link suggests: “When evaluating and summarizing data, rely mainly on your brain and use statistics to catch really big errors in judgment.”
+
+\pagebreak
+# Appendix
+
+```{r message=F, warning=F, fig.height=3.5, fig.width=6}
+
+pred_diameter <- as.data.frame(predict(height_diam, newdata = tree,
+        interval = "prediction",
+        level = 0.95))
+
+pred_diameter$mH.m <- tree$mH.m
+
+#ggplot
+tree %>% ggplot(aes(x = mH.m, y = mDBH.cm)) +
+  geom_point()+
+  labs(x="Mean Tree Height (m)", y="Mean Tree Diameter (cm)") +
+  theme(axis.text.y = element_text(colour = "black", size = 10, face = "bold"), 
+        axis.text.x = element_text(colour = "black", face = "bold", size = 10), 
+        legend.text = element_text(size = 9, face ="bold", colour ="black"), 
+        legend.position = "right", axis.title.y = element_text(face = "bold", size = 7), 
+        axis.title.x = element_text(face = "bold", size = 12, colour = "black", margin = margin(t=5)), 
+        axis.title.y.left = element_text(face = "bold", size = 12, colour = "black",margin=margin(r=5)),
+        legend.title = element_text(size = 5, colour = "black", face = "bold"), 
+        panel.background = element_blank(), panel.border = element_rect(colour = "black", fill = NA, size = 1.2),
+        legend.key=element_blank(),
+        plot.title = element_text(color = "black", size = 18, face = "bold", hjust = 0.5)) +
+  stat_smooth(method=lm, fill = "#56a0d3", alpha = 0.5) +
+  stat_poly_eq(aes(label = paste(after_stat(eq.label),
+                                 after_stat(rr.label), sep = "*\", \"*"), colour = "red")) +
+  geom_line(data = pred_diameter,
+            aes(x = mH.m, y = lwr), color = "green", linewidth=1) + 
+  geom_line(data = pred_diameter,
+            aes(x = mH.m, y = upr), color = "green",  linewidth=1)
+```
+\begin{center}
+Figure 1. Linear regression of mean tree height and mean tree diameter with confidence and prediction intervals.
+\end{center}
+
+
+```{r message=F, warning=F, fig.height=3.5, fig.width=6}
+plot(height_diam, which =1)
+```
+\begin{center}
+Figure 2. Residuals vs. Fitted values plot of the linear model between mean tree height and mean tree diameter.
+\end{center}
+
+\pagebreak
+```{r message=F, warning=F, fig.height=3, fig.width=6}
+ggqqplot(tree, "mH.m")
+```
+\begin{center}
+Figure 3. QQ plot of mean tree height data.
+\end{center}
+
+
+```{r message=F, warning=F, fig.height=4, fig.width=6}
+
+pred_height <- as.data.frame(predict(height_density, newdata = tree,
+        interval = "prediction",
+        level = 0.95))
+
+pred_height$mWD.g.m3 <- tree$mWD.g.m3
+
+#ggplot
+tree %>% ggplot(aes(x = mWD.g.m3, y = mH.m)) +
+  geom_point()+
+  labs(x = expression(bold("Mean Wood Density (g/m"^3*")")), y="Mean Tree Height (m)") +
+  theme(axis.text.y = element_text(colour = "black", size = 10, face = "bold"), 
+        axis.text.x = element_text(colour = "black", face = "bold", size = 10), 
+        legend.text = element_text(size = 9, face ="bold", colour ="black"), 
+        legend.position = "right", axis.title.y = element_text(face = "bold", size = 7), 
+        axis.title.x = element_text(face = "bold", size = 12, colour = "black", margin = margin(t=5)), 
+        axis.title.y.left = element_text(face = "bold", size = 12, colour = "black",margin=margin(r=5)),
+        legend.title = element_text(size = 5, colour = "black", face = "bold"), 
+        panel.background = element_blank(), panel.border = element_rect(colour = "black", fill = NA, size = 1.2),
+        legend.key=element_blank(),
+        plot.title = element_text(color = "black", size = 18, face = "bold", hjust = 0.5)) +
+  stat_smooth(method=lm, fill = "#56a0d3", alpha = 0.5) +
+  stat_poly_eq(aes(label = paste(after_stat(eq.label),
+                                 after_stat(rr.label), sep = "*\", \"*"), colour = "red")) +
+  geom_line(data = pred_height,
+            aes(x = mWD.g.m3, y = lwr), color = "green", linewidth=1) + 
+  geom_line(data = pred_height,
+            aes(x = mWD.g.m3, y = upr), color = "green",  linewidth=1)
+```
+\begin{center}
+Figure 4. Linear regression of mean wood density and mean tree height with confidence and prediction intervals.
+\end{center}
+
+\pagebreak
+```{r message=F, warning=F}
+plot(height_density, which =1)
+```
+\begin{center}
+Figure 5. Residuals vs. Fitted values plot of the linear model between mean wood density and mean tree height.
+\end{center}
+
+```{r message=F, warning=F, fig.height=3, fig.width=6}
+ggqqplot(tree, "mWD.g.m3")
+```
+\begin{center}
+Figure 6. QQ plot of mean wood density data.
+\end{center}
+
+```{r message=F, warning=F, results=F}
+#linearity
+plot(new_height_density, which=1)
+```
+\begin{center}
+Figure 7. Residuals vs. Fitted values plot of the linear model between mean wood density data after removing outliers.
+\end{center}
