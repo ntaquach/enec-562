@@ -554,5 +554,6 @@ R2<-SSR/SST
 R2
 ```
 
-
+#Normality comment 
+Against better judgment, in the past we have used the shapiro.test() to assess normality. Remember that no test will show that your data has a normal distribution. Normality statistics show when your data is sufficiently inconsistent with a normal distribution that you would reject the null hypothesis of “no difference from a normal distribution”. However, when the sample size is small, even big departures from normality are not detected, and when the sample size is large, even the smallest deviation from normality will lead to a rejected null. In other words, if we have enough data to fail a normality test, we always will because real-world data won’t be clean enough. See (http://www.r-bloggers.com/normality-and-testing-for-normality/) for an example with simulated data. So, where does that leave us? Explore your data for large deviations from normality and make sure to assess heteroscedasticity and outliers. But, don’t get hung up on whether your data are normally distributed or not. As the author of the above link suggests: “When evaluating and summarizing data, rely mainly on your brain and use statistics to catch really big errors in judgment.”
 
