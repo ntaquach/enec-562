@@ -1,0 +1,872 @@
+---
+title: "Week_6_lab"
+author: "Sarah Roberts"
+date: "2023-02-19"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warnings = FALSE)
+```
+
+
+#1 Robust regression 
+##1.1 Create data and run OLS 
+First, let’s create a fake dataset to work with:
+```{r}
+
+
+#create data
+df <- data.frame(x1=c(1, 3, 3, 4, 4, 6, 6, 8, 9, 3,
+                      11, 16, 16, 18, 19, 20, 23, 23, 24, 25),
+                 x2=c(7, 7, 4, 29, 13, 34, 17, 19, 20, 12,
+                      25, 26, 26, 26, 27, 29, 30, 31, 31, 32),
+                  y=c(17, 170, 19, 194, 24, 2, 25, 29, 30, 32,
+                      44, 60, 61, 63, 63, 64, 61, 67, 59, 70))
+
+#view first six rows of data
+head(df)
+
+```
+
+Next, let’s fit an ordinary least squares regression model and examine our assumptions
+```{r}
+#fit ordinary least squares regression model
+ols <- lm(y~x1+x2, data=df)
+summary(ols)
+```
+```{r}
+check_model(ols)
+```
+It looks like there are some influential observations (points 2 and 6)
+
+```{r}
+cooks.distance(ols) > 3*mean(cooks.distance(ols))
+```
+
+##1.2 Perform robust regression 
+Next, let’s use the rlm() function to fit a robust regression model: There are several weighting functions that can be used for IRLS. We are going to first use the Huber weights in this example. We will then look at the final weights created by the IRLS process. This can be very useful.
+
+```{r}
+library(MASS)
+
+#fit robust regression model
+robust <- rlm(y~x1+x2, data=df)
+
+summary(robust)
+```
+
+Let's examine how it is weighting the values 
+```{r}
+hweights <- data.frame(dat = df$y, resid = robust$resid, weight = robust$w)
+hweights2 <- hweights[order(robust$w), ]
+hweights2[1:15, ]
+```
+We can see that roughly, as the absolute residual goes down, the weight goes up. In other words, cases with a large residuals tend to be down-weighted. In OLS regression, all cases have a weight of 1. Hence, the more cases in the robust regression that have a weight close to one, the closer the results of the OLS and robust regressions.
+
+Next, let’s run the same model, but using the bisquare weighting function. Again, we can look at the weights.
+
+```{r}
+rr.bisquare <- rlm(y~x1+x2, data=df, psi = psi.bisquare)
+summary(rr.bisquare)
+
+biweights <- data.frame(dat = df$y, resid = rr.bisquare$resid, weight = rr.bisquare$w)
+biweights2 <- biweights[order(rr.bisquare$w), ]
+biweights2[1:15, ]
+```
+We can see that the weight given to the large residuals is dramatically lower using the bisquare weighting function than the Huber weighting function and the parameter estimates from these two different weighting methods differ. When comparing the results of a regular OLS regression and a robust regression, if the results are very different, you will most likely want to use the results from the robust regression. Large differences suggest that the model parameters are being highly influenced by outliers. Different functions have advantages and drawbacks. Huber weights can have difficulties with severe outliers, and bisquare weights can have difficulties converging or may yield multiple solutions.
+
+##1.3 Comparison 
+To determine if this robust regression model offers a better fit to the data compared to the OLS model, we can calculate the residual standard error of each model.
+
+The residual standard error (RSE) is a way to measure the standard deviation of the residuals in a regression model. The lower the value for RSE, the more closely a model is able to fit the data.
+
+The following code shows how to calculate the RSE for each model:
+
+```{r}
+#find residual standard error of ols model
+summary(ols)$sigma
+
+#find residual standard error of ols model
+summary(robust)$sigma
+
+rr.bisquare$s
+
+```
+
+We can see that the RSE for the robust regression model is much lower than the ordinary least squares regression model, which tells us that the robust regression model offers a better fit to the data. It seems like the Huber weighting is the best fitting overall. 
+
+#2. Robust standard errors 
+One of the assumptions of linear regression is that the residuals of the model are equally scattered at each level of the predictor variable.
+
+When this assumption is violated, we say that heteroscedasticity is present in a regression model.
+
+When this occurs, the standard errors for the regression coefficients in the model become untrustworthy.
+
+To account for this, we can calculate robust standard errors, which are “robust” against heteroscedasticity and can give us a better idea of the true standard error values for the regression coefficients.
+
+
+Suppose we have the following data frame  that contains information on the hours studied and exam score received by 20 students in some class:
+
+```{r}
+#create data frame
+df <- data.frame(hours=c(1, 1, 1, 1, 2, 2, 2, 3, 3, 3, 4,
+                         4, 5, 5, 5, 6, 6, 7, 7, 8),
+                 score=c(67, 68, 74, 70, 71, 75, 80, 70, 84, 72,
+                         88, 75, 95, 75, 99, 78, 99, 65, 96, 70))
+
+#view head of data frame
+head(df)
+
+```
+
+We can use the lm() function to fit a regression model in R that uses hours as the predictor variable and score as the response variable:
+
+```{r}
+#fit regression model
+fit <- lm(score ~ hours, data=df)
+
+#view summary of model
+summary(fit)
+
+```
+
+Let's check our assumptions 
+```{r}
+check_model(fit)
+gvlma(fit)
+
+```
+
+From the plot we can see that the variance in the residuals increases as the fitted values increase.
+
+This is an indication that heteroscedasticity is likely a problem in the regression model and the standard errors from the model summary are untrustworthy.
+
+To calculate robust standard errors, we can use the coeftest() function from the lmtest package and the vcovHC() function from the sandwich package as follows:
+
+```{r}
+library(lmtest)
+library(sandwich)
+
+```
+
+```{r}
+#calculate robust standard errors for model coefficients
+coeftest(fit, vcov = vcovHC(fit, type = 'HC3'))
+
+```
+
+Notice that the standard error for the hours predictor variable increased from 1.075 in the previous model summary to 1.2072 in this model summary.
+
+Since heteroscedasticity is present in the original regression model, this estimate for the standard error is more trustworthy and should be used when calculating a confidence interval for the hours predictor variable.
+
+Note: The most common type of estimate to calculate in the vcovHC() function is ‘HC0’, but you can refer to the documentation to find other estimate types.
+
+##2.1 by hand 
+```{r}
+set.seed(1)
+x <- c(1:4, 7)
+y <- c(5 + rnorm(4,sd = 1.2), 35)
+plot(x, y)
+```
+
+Notice the way we generated y. It is simply the number 5 with some random noise from a N(0,1.2) distribution plus the number 35. There is no relationship between x and y. However, when we regress y on x using lm we get a slope coefficient of about 5.2 that appears to be “significant”.
+
+```{r}
+m <- lm(y ~ x)
+summary(m)
+
+```
+
+```{r}
+s2 <- sigma(m)^2
+X <- model.matrix(m)
+vce <- solve(t(X) %*% X) %*% (t(X) %*% (s2*diag(5)) %*% X) %*% solve(t(X) %*% X)
+sqrt(diag(vce))
+
+```
+
+take a closer look at the meat 
+
+```{r}
+s2*diag(5)
+```
+
+```{r}
+# HC3
+hc3 <- resid(m)^2/(1 - hatvalues(m))^2
+
+# HC3 "meat"
+hc3*diag(5)
+
+```
+
+```{r}
+vce_hc3 <- solve(t(X) %*% X) %*% (t(X) %*% (hc3*diag(5)) %*% X) %*% solve(t(X) %*% X)
+sqrt(diag(vce_hc3))
+```
+
+```{r}
+coeftest(m, vcovHC(m, "HC3"))
+```
+
+Why not use this all of the time? 
+
+First, the use of sandwich estimators when the model is correctly specified leads to a loss of power. Second, if the model is not correctly specified, the sandwich estimators are only useful if the parameters estimates are still consistent, i.e., if the misspecification does not result in bias.
+We can demonstrate each of these points via simulation.
+
+In the first simulation, we generate data with an interaction, fit the correct model, and then calculate both the usual and robust standard errors. We then check how often we correctly reject the null hypothesis of no interaction between x and g. This is an estimation of power for this particular hypothesis test.
+```{r}
+
+
+# function to generate data, fit correct model, and extract p-values of
+# interaction
+f1 <- function(n = 50){
+  # generate data
+  g <- gl(n = 2, k = n/2)
+  x <- rnorm(n, mean = 10, sd = 2)
+  y <- 1.2 + 0.8*(g == "2") + 0.6*x + -0.5*x*(g == "2") + rnorm(n, sd = 1.1)
+  d <- data.frame(y, g, x)
+  # fit correct model
+  m1 <- lm(y ~ g + x + g:x, data = d)
+  sm1 <- summary(m1)
+  sm2 <- coeftest(m1, vcov. = vcovHC(m1))
+  # get p-values using usual SE and robust ES
+  c(usual = sm1$coefficients[4,4], 
+    robust = sm2[4,4])
+}
+
+# run the function 1000 times
+r_out <- replicate(n = 1000, expr = f1())
+
+# get proportion of times we correctly reject Null of no interaction at p < 0.05
+# (ie, estimate power)
+apply(r_out, 1, function(x)mean(x < 0.05))
+```
+
+The proportion of times we reject the null of no interaction using robust standard errors is lower than simply using the usual standard errors, which means we have a loss of power. (Though admittedly, the loss of power in this simulation is rather small.)
+
+The second simulation is much like the first, except now we fit the wrong model and get biased estimates.
+
+```{r}
+# generate data
+g <- gl(n = 2, k = 25)
+x <- rnorm(50, mean = 10, sd = 2)
+y <- 0.2 + 1.8*(g == "2") + 1.6*x + -2.5*x*(g == "2") + rnorm(50, sd = 1.1)
+d <- data.frame(y, g, x)
+
+# fit the wrong model: a polynomial in x without an interaction with g
+m1 <- lm(y ~ poly(x, 2), data = d)
+
+# use the wrong model to simulate 50 sets of data
+sim1 <- simulate(m1, nsim = 50)
+
+# plot a density curve of the original data
+plot(density(d$y))
+
+# overlay estimates from the wrong model
+for(i in 1:50)lines(density(sim1[[i]]), col = "grey80")
+
+```
+
+We see the simulated data from the wrong model is severely biased and is consistently over- or under-estimating the response. In this case robust standard errors would not be useful because our model is wrong.
+
+#3 Logistic regression 
+##3.1 Packages to Install
+
+**caret**
+Caret stands for Classification and Regression Training. Caret is a pretty popular
+package in Machine Learning. More can be read about caret here: 
+http://topepo.github.io/caret/index.html
+
+**lattice**
+The lattice package is a graphics package that caret requires. I'm not a huge fan
+of its graphics, but it is needed with caret. More can be read here: 
+https://www.statmethods.net/advgraphs/trellis.html. 
+
+**blorr**
+We will also use the package blorr which is a lovely package with functions for
+binary regression modeling. https://cran.r-project.org/web/packages/blorr/vignettes/introduction.html.
+Please install blorr if you haven't already.
+
+As always, we will first load the libraries we will need for this 
+tutorial. 
+```{r}
+library(ggplot2)  # my FAVORITE data visualization package
+library(dplyr)    # a set of packages for data manipulation and management
+library(caret)    # package for classification and regression, Machine Learning
+library(lattice)  # a graphics package
+library(blorr)    # a package for linear modeling
+library(lmtest)   # lmtest contains a bunch of linear model tests, as well as the likelihood ratio test that we will use here
+```
+
+
+We will read in the data and check it out with the glimpse() function in dplyr. 
+Please look at each of the columns to determine data type.
+
+```{r}
+setwd("C:/GitHub Projects/enec-562/Week 6 - Logistic Regression")
+cities_df<-read.csv("cities.csv")
+glimpse(cities_df)
+```
+
+Although we can run a logistic model with our response variable as an integer,
+I like to set it as a factor--we can make sure that there are in fact two levels 
+in the variable. Once we make the variable into a factor, we can check out the levels.
+
+##3.2 Load and examine data 
+
+```{r}
+cities_df$paris<-as.factor(cities_df$paris)
+cities_df$mayor.party<-as.factor(cities_df$mayor.party)
+levels(cities_df$paris)
+```
+
+
+To make interpretations easier, I'm going to divide a income and gpppercap by $1000. 
+Mathematically this isn't necessary, but for ease of understanding the coefficients,
+it is often better to speak in terms of a change in $1,000 of income versus $1. A $1,000
+unit is more meaningful.
+```{r}
+cities_df$gdppc.k<-cities_df$gdppercap/1000
+cities_df$income.k<-cities_df$income/1000
+```
+
+
+Before I do any logistic analysis, I love to look at the data using side-by-side boxplots. 
+
+###Plot it out 
+```{r}
+
+mydata <- cities_df %>% dplyr::select(paris, pop2018, income.k, gdppc.k, education, air_violation) %>% 
+  pivot_longer(c(pop2018, income.k, gdppc.k, education, air_violation))
+
+#Create the Scatter Plots:
+mydata %>% ggplot(aes(y=value, x = paris)) + geom_boxplot()+
+  facet_wrap(~name, scales = "free_y")
+```
+The side-by-side boxplot suggests that cities that have agreed to Paris have higher GDPpc, maybe  have a higher population, more education (% with a bachelors degree), and less income. The number of unhealthy air quality days may also be higher for cities that have agreed to the climate agreement. 
+
+##3.3 Simple logistic regression 
+As we did with linear regression, let's start simple and ask if gdp influences whether or not a city adopts the paris climate agreement 
+
+plot it out 
+```{r}
+ggplot(cities_df, aes(x=gdppc.k, y=as.numeric(paris)-1)) + geom_point() + 
+  geom_smooth(method="glm", 
+              method.args=list(family="binomial"(link=logit)), se=TRUE) +
+  theme_bw()
+
+# y=as.numeric(type)-1 is needed for the plot
+```
+###3.3.1 Run it
+```{r}
+simp_logit <- glm(paris~gdppc.k,data=cities_df,family="binomial"(link=logit))
+summary(simp_logit)
+```
+Fitting this model looks very similar to fitting a simple linear regression. Instead of lm() we use glm(). The only other difference is the use of family = "binomial" which indicates that we have a two-class categorical response. Using glm() with family = "gaussian" would perform the usual linear regression.
+
+
+As you can see in the output, GDP per capita is significantly and positively associated with the odds of adoption of the Paris commitment. For every $1,000 increase in GDP per capita, the log odds of adopting the paris increases by .059. This is not very meaningful to me, lets transform it to odds ratio 
+
+```{r}
+exp(coef(simp_logit))
+```
+
+So the odds-ratio is 1.06. This means for every increase of 1 in gdppc, the chance of adopting the paris climate agreement goes up by 6%. If the odds-ratio was exactly 1, that would indicate an equal odds (i.e. the variable would not be associated with the event), and odds-ratios below 1 indicate the chance decreasing as the variable increases.
+
+R reports the Wald z statistic, which the square root of the Wald χ2 test. This is based on the mathematical fact that if you square the standard normal distributon  Z, you get a chi-square distribution with df=1.
+
+The hypotheses are 
+  H0:β1=0 versus H1:β1≠0
+
+or, in terms of the odds-ratio θ
+  H0:θ=1 versu sH1:θ≠1
+ 
+Notice that the z statistic given is the estimate divided by standard error and the  
+p -value is based on the standard normal distribution.
+  z = 0.05915/0.02830 = 2.09
+  
+The Wald confidence interval for β1 is computed in a similar fashion to many other confidence intervals we have seen.
+  β1±z∗Sβ1
+  0.05915±1.96*0.02830 = 0.114618, 0.003682
+  
+of course we can get that using the confint funciton in r
+```{r}
+confint(simp_logit, level = .95)
+```
+
+Likelihood ratio test: 
+
+Inference for generalized linear models can also be conducted with a likelihood ratio test. This will involve the analysis of deviance table.
+```{r}
+Anova(simp_logit,type="II",test="LR")
+```
+Reading from the output, we see that χ2 =5.2836 with df = 1, p < .05. Notice that the chi-square test statistic is NOT equal to the Wald chi-square test computed earlier.
+
+This is based on the statistic
+χ2 = -2ln(LR/LF) 
+AKA
+χ2 = -2(ln(LR) - ln(LF)) 
+
+where LR is the likelihood of the reduced model and LF is the likelihood of the full model. So far, we have only fit the full model paris~gdp. Let’s fit the reduced model paris~1 (i.e. an intercept only or “null” model) and compute the log-likelihoods and the deviance with R. 
+
+```{r}
+null_model <- glm(paris~1,data=cities_df,family="binomial"(link=logit))
+logLik(null_model)
+
+logLik(simp_logit)
+
+diff <- logLik(null_model)[1] - logLik(simp_logit)[1]
+chisq.LRT <- -2*diff
+chisq.LRT
+
+pval.LRT <- 1-pchisq(chisq.LRT,df=1)
+pval.LRT
+```
+Notice we get the same test statistic as was provided by the Anova command. Also look at the bottom of the summary again.
+
+```{r}
+summary(simp_logit)
+```
+Notice that the difference of the Null deviance (109.69) and the Residual deviance (104.41) is 5.28, our chi-squared test statistic with 81 - 80 = 1df. The null deviance is -2 times the log-likelihhod of reduced model, while the residual deviance is -2 times the log-likelihood of the full model. This is analogous to the “extra SS” concept from partial Ftests. Wow so cool! 
+
+
+Overall model R2: 
+R2 is tricky with logistic regression They do not have the same meaning as R2 in OLS because the coefficients are calculated using maximum likelihood estimation (not OLS). There are many pseudo-R2's floating out there is the statistical netherworld. Check out this link for a summary: https://stats.idre.ucla.edu/other/mult-pkg/faq/general/faq-what-are-pseudo-r-squareds/
+
+We will calculate two different pseudo-R-squareds: McFadden's and adjusted McFadden's. These functions are from the blorr package. They are okay measures if you are comparing models on the same data, otherwise I typically wouldn't pay a penny for them. 
+
+```{r}
+blr_rsq_mcfadden(simp_logit)
+blr_rsq_mcfadden_adj(simp_logit)
+```
+
+Hosmer-Lemeshow test:
+Another approch to determining the goodness of fit is through the Homer-Lemeshow statistics, which is computed on data after the observations have been segmented into groups based on having similar predicted probabilities. The observations are put into 10 groups according to the probability predicted by the logistic regression model. For example, if there were 200 observations, the first group would have the cases with the 20 smallest predicted probabilities, the second group would have the cases with the 20 next smallest probabilities, etc. The number of cases with the level of interest is compared with the expected number given the fitted logistic regression model via a chi-squared test. The test is failed is the p-value is less than 0.05.
+```{r}
+library(glmtoolbox)
+hltest(simp_logit)
+```
+
+
+
+###3.3.2 Assumptions 
+Unlike linear regression, the logistic regression model does not include an error term (ϵ). While it is possible to compute various kinds of residuals in a logistic regression, there is no assumption that they be normally distributed or have constant variance. Like LR, however, logistic regression assumes that continuous predictors have a linear relationship with the outcome (in this case, with the log-odds of the probability of the outcome).
+
+####3.3.2.1 Linearity 
+Option 1: boxTidwell
+
+TheBox-Tidwell test is used to check for linearity between the predictors and the logit. This is done by adding log-transformed interaction terms between the continuous independent variables and their corresponding natural log into the model.
+
+It checks whether the logit transform is a linear function of the predictor, effectively adding the non-linear transform of the original predictor as an interaction term to test if this addition made no better prediction.
+A statistically significant p-value of the interaction term in the Box-Tidwell transformation means that the linearity assumption is violated
+
+```{r}
+
+
+cities_df$log_gdp <- log(cities_df$gdppc.k)
+
+summary(glm(paris ~ gdppc.k + gdppc.k*log_gdp, data = cities_df, family = "binomial"(link="logit"), na.action=na.exclude))
+```
+we can also use the function from the car pacakge to test this - this comes in handy when we have a lot of predictors 
+
+```{r}
+boxTidwell(as.numeric(paris) ~ gdppc.k, data = cities_df)
+```
+
+The null hypothesis is linearity, so we fail to reject and can carry on with our lives
+
+
+Option 2: graphically 
+
+Traditional residual plots are not very helpful with logistic regression. Consider, for example, this residual plot for the above model:
+
+
+```{r}
+plot(simp_logit, which=1)
+```
+A binned residual plot, available in the arm package, is better. From the documentation:
+
+In logistic regression, as with linear regression, the residuals can be defined as observed minus expected values. The data are discrete and so are the residuals. As a result, plots of raw residuals from logistic regression are generally not useful. The binned residuals plot instead, after dividing the data into categories (bins) based on their fitted values, the average residual versus the average fitted value for each bin
+```{r}
+library(arm)
+binnedplot(fitted(simp_logit), 
+           residuals(simp_logit, type = "response"), 
+           nclass = NULL, 
+           xlab = "Expected Values", 
+           ylab = "Average residual", 
+           main = "Binned residual plot", 
+           cex.pts = 0.8, 
+           col.pts = 1, 
+           col.int = "gray")
+```
+The grey lines represent  ±2 SE bands, which we would expect to contain about 95% of the observations. This model looks reasonable, in that majority of the fitted values seem to fall within the SE bands. It is also possible to use binnedplot() to investigate residuals versus individual predictors
+
+####3.3.2.2 Influential observation 
+Checking for influential observations in logistic regression is the same as for LR. Fit the model, plot the Cook’s distances and DFBetas, and, if there are observations with extreme values, conduct a sensitivity analysis to see if their removal impacts your conclusions
+
+```{r}
+car::influenceIndexPlot(simp_logit, vars = "Cook",
+                        id=F, main = "Cook's distance")
+
+cooks.distance(simp_logit) > 3*mean(cooks.distance(simp_logit))
+
+```
+
+Here we see the cook’s distance values. However, based on these observations, it is not possible to make definitive comments about the outliers. For this, standardized residual values are checked. When standardized residues take values between 3 and -3 there are no influential observations, they can be interpreted. Let’s examine the codes:
+
+```{r}
+std.resid<-rstandard(simp_logit)
+z<-abs(std.resid)>3
+table(z)[TRUE]
+```
+When we interpret the output, we can say that there is no influential observation.
+
+####3.3.2.3 Multicollineairy 
+check that with VIF, we have done that before so won't be going into that here. 
+
+###3.3.3 Prediction 
+The next thing we should understand is how the predict() function works with glm(). So, let’s look at some predictions.
+
+```{r}
+head(predict(simp_logit))
+```
+
+By default, predict.glm() uses type = "link". Importantly, these are not predicted probabilities. To obtain the predicted probabilities we need to use type = "response"
+
+```{r}
+head(predict(simp_logit, type = "response"))
+```
+
+Note that these are probabilities, not classifications. To obtain classifications, we (I) will write a function which allows use to make predictions based on different probability cutoffs.
+
+```{r}
+get_logistic_pred = function(mod, data, res = "y", pos = 1, neg = 0, cut = 0.5) {
+  probs = predict(mod, newdata = data, type = "response")
+  ifelse(probs > cut, pos, neg)
+}
+```
+
+Let’s use this to obtain predictions using a medium, and high cutoff. (0.5, and 0.9)
+
+```{r}
+test_pred_50 = get_logistic_pred(simp_logit, data = cities_df, res = "default", 
+                                 pos = 1, neg = 0, cut = 0.5)
+test_pred_90 = get_logistic_pred(simp_logit, data = cities_df, res = "default", 
+                                 pos = 1, neg = 0, cut = 0.9)
+
+```
+
+Now we evaluate accuracy, sensitivity, and specificity for these classifiers.
+
+```{r}
+
+test_tab_50 = table(predicted = test_pred_50, actual = cities_df$paris)
+test_tab_90 = table(predicted = test_pred_90, actual = cities_df$paris)
+
+test_con_mat_50 = confusionMatrix(test_tab_50, positive = "1")
+test_con_mat_90 = confusionMatrix(test_tab_90, positive = "1")
+
+```
+
+calculate some metrics 
+```{r}
+metrics = rbind(
+  c(test_con_mat_50$overall["Accuracy"], 
+    test_con_mat_50$byClass["Sensitivity"], 
+    test_con_mat_50$byClass["Specificity"]),
+  
+  c(test_con_mat_90$overall["Accuracy"], 
+    test_con_mat_90$byClass["Sensitivity"], 
+    test_con_mat_90$byClass["Specificity"])
+
+)
+
+rownames(metrics) = c("c = 0.50", "c = 0.90")
+metrics
+```
+
+We see then sensitivity decreases as the cutoff is increased. Conversely, specificity increases as the cutoff increases. This is useful if we are more interested in a particular error, instead of giving them equal weight.
+
+Note that usually the best accuracy will be seen near c=0.50.
+
+Instead of manually checking cutoffs, we can create an ROC curve (receiver operating characteristic curve) which will sweep through all possible cutoffs, and plot the sensitivity and specificity.
+
+```{r}
+library(pROC)
+test_prob = predict(simp_logit, newdata = cities_df, type = "response")
+test_roc = roc(cities_df$paris ~ test_prob, plot = TRUE, print.auc = TRUE)
+```
+
+```{r}
+as.numeric(test_roc$auc)
+```
+
+A good model will have a high AUC, that is as often as possible a high sensitivity and specificity.
+
+
+##3.4 Multiple linear regression 
+Let’s look at adding a variable to the model (mayor party) - 1 = Democratic mayor, 0 = republican mayor 
+
+```{r}
+cities_df$mayor.party<-as.factor(cities_df$mayor.party)
+```
+
+
+```{r}
+mod2 <- glm(paris ~ gdppc.k + mayor.party, family="binomial"(link=logit), data = cities_df)
+summary(mod2)
+```
+GDP is still significant, and so is mayor.party. The coefficient for mayor.party is positive indicating cities with democratic mayors are more likely to adopt the climate agreement. 
+
+```{r}
+exp(coef(mod2))
+```
+
+More specifically, all else constant, cities led by Democratic mayors have roughly three times greater odds of agreeing to the Paris commitments than cities run by Republicans or mayors of other political parties (p=.024) (or the odds are 223% higher). We see that the level of mayor left in the model is mayor.party1 which means Democratic mayors. So Democratic mayors odds of adoption are three times that of Republican mayors, all else constant.
+
+###3.4.1 Likelihood ratio test 
+We conduct a likelihood ratio (LR) test between two models using the lmtest package.The models must be nested (the variables in the reduced model must also be present in the full model). We are comparing the likelihood of the data under the full model (mod2) to the likelihood of the data to a reduced model (a model with fewer predictors). The Null Hypothesis is that the likelihoods of the data are equal. 
+
+You can read about it here. https://www.r-bloggers.com/2015/08/evaluating-logistic-regression-models/
+
+```{r}
+library(lmtest)
+lmtest::lrtest(mod2, simp_logit)
+```
+
+With a chi-square value of 5.2458 and p-value of 0.022, we reject the null hypothesis (that the likelihoods of the data are equal). This suggests that the full model is a better fitting model than the reduced model.
+
+We can also compare the AIC of each of the two models. 
+```{r}
+AIC(mod2, simp_logit)
+```
+
+The AIC dropped in mod2, suggesting a stronger model. Finally, we can calculate pseudo-R2s.
+
+```{r}
+blr_rsq_mcfadden_adj(mod2)
+blr_rsq_mcfadden_adj(simp_logit)
+```
+
+###3.4.2 Choosing the best model 
+
+Lets look at the variables pop2018, income.k, gdppc.k, education, air_violation and mayor 
+
+First I am going to fit a full model and examine the assumptions 
+
+```{r}
+full_model <- glm(paris ~ pop2018 + income.k + gdppc.k + education + air_violation + mayor.party, data = cities_df, family = "binomial"(link = logit))
+
+summary(full_model)
+```
+
+
+check multicollinearity - it makes sense to check this first
+```{r}
+library(car)
+vif(full_model)
+```
+
+we seem to be okay there - lets check the linearity assumption. Note this assumption only needs to be met for continuous variables 
+
+```{r}
+mydata <- cities_df %>% 
+  mutate(logit = predict(full_model)) 
+
+
+mydata <- mydata %>% dplyr::select(logit, pop2018, income.k, gdppc.k, education, air_violation)
+
+mydata <- mydata %>%
+  gather(key = "predictors", value = "predictor.value", -logit)
+
+mydata$predictor.value <- as.numeric(mydata$predictor.value)
+#Create the Scatter Plots:
+ggplot(mydata, aes(logit, predictor.value))+
+  geom_point(size = 0.5, alpha = 0.5) +
+  geom_smooth(method = "loess") + 
+  theme_bw() + 
+  facet_wrap(~predictors, scales = "free_y")
+```
+To me it looks like here is one influential point that is really driving these relationships to be nonlinear. 
+
+I will take it out, and look at linearity again
+
+```{r}
+#Create the Scatter Plots:
+mydata %>% dplyr::filter(logit < 8) %>% ggplot(aes(logit, predictor.value))+
+  geom_point(size = 0.5, alpha = 0.5) +
+  geom_smooth(method = "loess") + 
+  theme_bw() + 
+  facet_wrap(~predictors, scales = "free_y")
+
+```
+
+it looks like air_violation and income are not very linear. 
+
+```{r}
+colSums(is.na(cities_df))
+
+boxTidwell(as.numeric(paris) ~ pop2018 + income.k + gdppc.k + education + air_violation, data = cities_df)
+```
+You’ll note if you do this will all three of the variables that look like they could be amenable to a non-linear transformation (air_violation) you’ll notice that the model fails
+
+if we take out air_violation it doesn't fail and it appears the rest are linear 
+```{r}
+boxTidwell(as.numeric(paris) ~ pop2018 + income.k + gdppc.k + education, data = cities_df)
+```
+
+Let's take out that variable and rerun the model 
+
+```{r}
+mod3 <- glm(paris ~ pop2018 + income.k + gdppc.k + education + mayor.party, data = cities_df, family = "binomial"(link = logit))
+summary(mod3)
+```
+lets examine if there are any influential points 
+```{r}
+car::influenceIndexPlot(mod3, vars = "Cook",
+                        id=F, main = "Cook's distance")
+
+cooks.distance(mod3) > 3*mean(cooks.distance(mod3))
+
+```
+```{r}
+std.resid<-rstandard(mod3)
+z<-abs(std.resid)>3
+table(z)[TRUE]
+```
+
+I am going to run one model with the influential point and one without it 
+
+```{r}
+mod4 <- glm(paris ~ pop2018 + income.k + gdppc.k + education + mayor.party, data = cities_df, family = "binomial"(link = logit))
+summary(mod4)
+
+mydata2 <- cities_df %>% 
+  mutate(logit = predict(full_model)) 
+
+cities_df2 <- mydata2 %>% dplyr::select(paris, logit, pop2018, income.k, gdppc.k, education, mayor.party) %>% filter(logit < 8)
+
+mod5 <- glm(paris ~ pop2018 + income.k + gdppc.k + education + mayor.party, data = cities_df2, family = "binomial"(link = logit))
+summary(mod5)
+
+```
+It looks like that one point isn't influencing there results too much. Let's proceed with model selection 
+
+####3.4.2.1 AIC
+lets compare all of the possible models based on AIC 
+
+```{r}
+library(gtools)
+pastePerm<- function(row, names){
+  keep<- which(row==1)
+  if(length(keep)==0){
+    return('1')
+  }else{
+    return(paste(names[keep],collapse='+'))
+  }
+}
+my_sqrt <- function(var1){
+  sqrt(var1)
+}
+
+dredgeform<- function(pred, covars, alwaysIn=''){
+  p<- length(covars)
+  perm.tab<- permutations(2, p, v=c(0,1), repeats.allowed=T)
+  myforms<- NULL
+  for(j in 1:nrow(perm.tab)){
+    myforms[j]<- pastePerm(perm.tab[j,], covars)
+  }
+  myforms<- paste0(pred, '~',myforms)
+  return(myforms)
+}
+
+allformulas<- dredgeform(pred = "paris", covars = c("pop2018", "income.k", "gdppc.k", "education", "mayor.party"))
+
+
+```
+
+notice i changed the function a bit from last time 
+
+```{r}
+
+set.seed(123)
+compare_var <- as.data.frame(matrix(ncol = 2, nrow = 0))
+colnames(compare_var) <- c("formula", "AIC")
+
+for ( i in 1:length(allformulas)) {
+
+model <- glm(as.formula(allformulas[i]), data = cities_df, family = "binomial"(link= logit))
+
+# Summarize the results
+compare_var[i, 1] <- allformulas[i]
+compare_var[i, 2] <- AIC(model)
+}
+
+compare_var %>% arrange(AIC)
+
+```
+From this I would infer that our minimum adequate model is income.k+gdppc.k+education (this makes sense as those were the only significant variables). 
+
+####3.4.2.2 Cross validation 
+Lets use cross validation to test the best model for prediction. The caret package is a little finicky and doesn't like ones and zeros in the data so we will manipulate our paris variable to be a named variable
+
+```{r}
+cities_df <- cities_df %>% 
+  mutate(paris = factor(paris, 
+                        labels = make.names(levels(paris))))
+
+```
+
+```{r}
+
+
+set.seed(123)
+library(caret)
+compare_var <- as.data.frame(matrix(ncol = 4, nrow = 0))
+colnames(compare_var) <- c("formula", "AUC", "sensitivity", "specificity")
+
+for ( i in 2:length(allformulas)) {
+  
+train.control <- trainControl(method = "repeatedcv", number = 3, repeats = 10, 
+                     summaryFunction=twoClassSummary, 
+                     classProbs=T,
+                     savePredictions = T)
+
+# Train the full model
+model <- train(as.formula(allformulas[i]), data = cities_df, method = "glm", family = "binomial", trControl = train.control, metric = "ROC")
+
+# Summarize the results
+compare_var[i, 1] <- allformulas[i]
+compare_var[i, 2] <- model$results$ROC
+compare_var[i, 3] <- model$results$Sens
+compare_var[i, 4] <- model$results$Spec
+
+
+}
+
+compare_var %>% arrange(-AUC)
+```
+
+well whaddya know - it's the same formula. 
+
+
+#In class Assignment
+plot the ROC curve for the model we determined as best for prediction (and inference) above. You can just plot it for in-sample-prediction (on the sample used to train the model). Show the AUC value on the plot. Take a screenshot of your ROC curve and code and upload to canvas.  
+
+```{r}
+#best model
+
+best_glm <- glm(paris ~ income.k+gdppc.k+education, data = cities_df, family = "binomial"(link = logit))
+summary(best_glm)
+
+
+library(pROC)
+best_prob = predict(best_glm, newdata = cities_df, type = "response")
+best_roc = roc(cities_df$paris ~ best_prob, plot = TRUE, print.auc = TRUE)
+
+```
+

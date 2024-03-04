@@ -1,0 +1,51 @@
+---
+title: "Week_6_Problem_Set"
+author: "Sarah Roberts"
+date: "2023-02-22"
+output: html_document
+---
+
+Submit a knitted PDF of your analysis as well as your .Rmd file. In your PDF, provide written answers to questions and accompanying tables and figures. I don't want to see any code in your PDF. 
+
+Data:
+House sparrows were found on the ground after a severe winter storm in 1898, some of which survived and others of which perished. We are going to analyze the explanatory variables that determine whether a sparrow survived or not. 
+
+Variables include: 
+bird weight, WT
+age, AG
+total length, TL
+alar extent, AE 
+length of beak and head, BH, 
+length of humerus, HL, 
+length of femur, FL, 
+length of tibio-tarsus, TT, 
+width of skull, SK, 
+length of keel of sternum, KL.
+
+```{r}
+sdat <- read.csv("sdat.csv")
+```
+
+
+Question 1: 
+
+1. Fit a simple logistic regression model with just bird weight as the x variable and survival as the y variable.
+2. Make a boxplot comparing survival across different weights (2.5) 
+3. Interpret the coefficients (on both the logit scale and the odds ratio) (5)
+4. Report the the Wald confidence interval for β1 (calculated by hand and using confint) (2.5)
+5. Report and discuss the results from the likelihood ratio test (5)
+6. Check the assumptions of the model (5)
+
+Question 2: 
+1. Fit the full model using all of the variables. Decide whether to include or exclude predictor variables based on     multicollinearity (2.5)
+
+2. Check the assumptions of linearity. Decide whether or not to include or exclude predictor variables based on          linearity. (2.5)
+
+3. Find the best combination of variables for predicting survival using cross validation. Describe what this method is doing (5) 
+    - Interpret the coefficients of this model. (5)
+    
+4. Train (fit) your final model selected via cross validation on 70% of the data and test (predict) it on 30% it hasn't seen yet (5)
+    - Using a cutoff of .6, report the confusion matrix for your model. Interpret Accuracy, Sensitivity and Specificity in words. (5)
+    - Plot the ROC of your model (from the 70%, 30% split) and report out the AUC on the plot. (5)
+  
+  

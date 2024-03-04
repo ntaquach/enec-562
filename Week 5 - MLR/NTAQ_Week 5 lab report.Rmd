@@ -1,0 +1,562 @@
+---
+title: "Week 5 Lab Report"
+author: "Nguyen Tien Anh Quach"
+date: "`r Sys.Date()`"
+output:
+  pdf_document: default
+  html_document: default
+chunk_output_type: inline
+indent: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = F)
+```
+
+```{r warning=F, message=F}
+setwd("C:/GitHub Projects/enec-562/Week 5 - MLR")
+carbon <- read.csv("carbon.csv") 
+carbon$urban.percent <- carbon$urban_percent
+```
+
+
+```{r message=F, warning=F, results=F}
+#We are interested in modeling state-level residential carbon production per capita, so we need to calculate a per capita value. Our units are now metric tons carbon per capita.
+
+carbon$res.carbon.pc.mt<-carbon$residentialco2mmt/carbon$population*1000000
+head(carbon$res.carbon.pc.mt)
+```
+
+```{r message=F, warning=F}
+library(dplyr)
+library(kableExtra)
+library(moments)
+library(tidyverse)
+library(GGally)
+library(car)
+library(rstatix)
+library(lmtest)
+library(caret)
+library(interactions)
+```
+
+
+# Introduction
+
+This report is to analyze residential carbon production per capita data to examine which explanatory variable(s) best predicts the C production. The list of variables includes: 
+
+(1) Average annual temperature (degrees F)
+
+(2) Percent of state that voted for President Trump 
+
+(3) Standardized climate change google search share
+
+(4) Percent of state population with Bachelor’s Degree
+
+(5) Median per capita income (USD)
+
+(6) Renewable portfolio standard
+
+(7) Percent of state population that is urban
+
+(8) The state that is located in the west
+
+## Summary statistics of model variables
+
+Summary statistics of the different continuous variables are below (Table 1). From the first look, all continuous variables have low skewness (close to 0). Therefore, they may be normally distributed. However, I will check the assumptions properly later on.
+
+\begin{center}
+Table 1. Summary statistics of average annual temperature, percent Trump vote, climate change search share, percent Bachelor's degree, income per capita, and percent urban population in U.S. states.
+\end{center}
+
+```{r message=F, warning=F}
+carbon_sum <- carbon %>%
+  select(temp,trumpvote,climatechange,bachelorsdegree,
+         incomepercapitaus,urban.percent) %>% 
+  pivot_longer(cols = everything(), names_to = "variable", values_to = "value") %>%
+  group_by(variable) %>%
+  summarise(
+    mean = round(mean(value, na.rm = TRUE), 2),
+    median = round(median(value, na.rm = TRUE), 2),
+    sd = round(sd(value, na.rm = TRUE), 2),
+    IQR = round(IQR(value, na.rm = TRUE), 2),
+    skewness = round(skewness(value, na.rm = TRUE), 2)
+  ) %>%
+  ungroup()
+
+#Change variable names
+
+carbon_sum$variable <- c("Percent Bachelor's Degree", "Climate Change Search Share", 
+                         "Income per Capita (USD)", "Avg Annual Temp (deg F)",
+                         "Percent Trump Vote", "Percent Urban Population")
+# Create the table using kable
+kable(carbon_sum, "latex", booktabs = TRUE, escape = FALSE, 
+      col.names = c("Variable", "Mean", "Median", "SD", "IQR", "Skewness"),
+      align = "c") %>%
+  column_spec(1, width = "5cm") %>%  # Adjust the width of the first column as needed
+  kable_styling(position = "center") %>%
+  kable_styling(latex_options = "HOLD_position") %>%
+  kable_styling(latex_options = "scale_down")
+```
+
+## Variables' correlations
+
+The correlations (1) among independent variables and (2) between residential carbon production per capita and other independent variables (Fig. 1). 
+
+The residential carbon production per capita has a significantly negative correlation with average annual temperature and signficantly positive correlations with renewable portfolio standard, climate change search share, percent Bachelor's degree, and income per capita. 
+
+Among the independent variables, there are many significantly correlations, which mean that there may be multicollinearity existing and assumptions may be violated.  
+
+```{r message=F, warning=F, fig.height=8, fig.width= 10}
+carbon %>%
+  select(temp,trumpvote,climatechange,bachelorsdegree,
+         incomepercapitaus,urban.percent, rps, west, res.carbon.pc.mt) %>% #add in rps, west ?
+  ggpairs(columns = 1:9, title = "",
+          axisLabels = "show")
+```
+\begin{center}
+Figure 1. Correlations among continuous variables and between residential carbon production per capita and other variables.
+\end{center}
+
+# Results
+
+## Initial model
+
+The initial model was: 
+
+\begin{center}
+\( \text{res.carbon.pc.mt} \sim \text{temp} + \text{trumpvote} + \text{climatechange} + \text{bachelorsdegree} + \text{incomepercapitaus} + \text{urban.percent} + \text{rps} + \text{west} \)
+\end{center}
+  
+```{r message=F, warning=F, results=F}
+init_lm <- lm(res.carbon.pc.mt ~ temp + trumpvote + climatechange + bachelorsdegree +
+         incomepercapitaus + urban.percent +  rps + west, data = carbon)
+summary(init_lm)
+```
+
+The initial LM showed that the model was statistically significant (Adjusted R$^2$ = 0.78, F(8, 41) = 22.54, p < 0.001), but only temperature (p < 0.001, df = 41) and states that are in the west (p < 0.001, df = 41) had statistically significant coefficients.
+
+A one degree increase in average annual temperature is associated with a decrease of approximately 0.051 metric tons carbon in residential carbon production per capita, holding other variables constant. In addition, as state are in the west, the residential carbon production per capita is 0.61 metric tons lower, holding other variables constant.
+
+## Check model assumptions
+
+**1. Multicollinearity**
+
+```{r message=F, warning=F, results=F}
+vif(init_lm)
+```
+
+Variance Inflation Factors (VIF) showed that no variable had VIF that was more than 10. However, trumpvote, climatechange, and bachelorsdegree had VIFs more than 5. In addition, incomepercapitaus and urban.percent had VIFs that were marginally 5. 
+\newline
+
+**2. Linearity**
+
+```{r message=F, warning=F,fig.align='center',fig.height=3, fig.width=6}
+plot(init_lm, which = 1)
+```
+
+There is a relatively straight line through the fitted values. Therefore, linearity assumption is met!
+\newline
+
+**3. Normal distribution of error**
+
+```{r message=F, warning=F,fig.align='center',fig.height=3, fig.width=6}
+plot(init_lm, which = 2)
+```
+```{r message=F, warning=F, results=F}
+resid_normal_p_init <- resid(init_lm) %>% shapiro_test()
+```
+
+The majority of the data points are along the the standard normal distribution line. Shapiro-Wilk test of the residuals also yielded a nonsignificant p-value of `r round(resid_normal_p_init$p.value, 2)`. Therefore, the normal distribution assumption of error is met!
+\newline
+
+**4. Constant variance of error**
+
+```{r message=F, warning=F,fig.align='center',fig.height=3, fig.width=6}
+plot(init_lm, which = 3)
+```
+
+```{r message=F,warning=F,results=F}
+resid_var_p_init <- bptest(init_lm)
+```
+
+There is a relatively straight line through the fitted values. Studentized Breusch-Pagan test also yielded a nonsignificant p-value of `r round(resid_var_p_init$p.value, 2)`. Therefore, constant variance assumption is met!
+
+```{r message=F, warning=F, results=F}
+which(cooks.distance(init_lm) > 3*mean(cooks.distance(init_lm)))
+cooks.distance(init_lm) > 3*mean(cooks.distance(init_lm))
+```
+
+However, it is important to note that there are five leverage points in the model: 3, 25, 35, 40, and 45. 
+\newline
+
+**5. Zero error mean**
+
+```{r message=F, warning=F, results=F}
+mean(resid(init_lm))
+```
+The mean of the residuals is `r round(mean(resid(init_lm)), 2)`. Therefore, this assumption is met!
+\newline
+
+**6. Uncorrelated errors**
+
+```{r message=F, warning=F,fig.align='center',fig.height=3, fig.width=6}
+plot(init_lm$residuals)
+```
+
+Errors are uncorrelated as they are randomly scattered around \( \epsilon \) = 0. The assumption is met! 
+\newline
+
+**In summary, all the assumptions are met, perhaps except for multicollinearity. The variables, trumpvote, climatechange, and bachelorsdegree, had high VIFs that were more than 5. Eliminating redundant variables is needed for a better model.**
+
+## Second model
+
+The second model was: 
+
+\begin{center}
+\( \text{res.carbon.pc.mt} \sim \text{temp} + \text{trumpvote} + \text{temp*trumpvote} \)
+\end{center}
+
+```{r message=F, warning=F, results=F}
+second_lm <- lm(res.carbon.pc.mt ~ temp + trumpvote + temp*trumpvote, data = carbon)
+summary(second_lm)
+```
+Below is the plot showing the interactions between temp and trumpvote:
+\newline
+```{r message=F, warning=F, fig.align='center',fig.height=3, fig.width=6}
+
+interact_plot(second_lm, pred = temp, modx = trumpvote,
+              plot.points = TRUE, point.alpha = 0.2,
+              x.label = "Average annual temperature (deg F)",
+              y.label = "Residential carbon per capita (metric tons)",
+              legend.main  = "Percent Trump vote")
+```
+
+
+The second LM showed that the model was statistically significant (Adjusted R$^2$ = 0.68, F(3, 46) = 35.67, p < 0.001). For this model, temperature (p < 0.001, df = 46), trumpvote (p = 0.006, df = 46), and their interaction effect (p = 0.017) had statistically significant coefficients.
+\newline
+
+A one degree increase in average annual temperature is associated with a decrease of approximately 0.13 metric tons carbon in residential carbon production per capita, holding percent Trump vote constant. In addition, a one percent increase in Trump voter, the residential carbon production per capita is 0.09 metric tons lower, assuming average annual temperature is held constant. 
+\newline
+
+Interestingly, the interaction term between average annual temperature and percent Trump vote resulted in a positive coefficient (0.0015). This means that in average, if percent Trump vote increases one percent, a one degree increase in avg annual temperature  will decrease residential carbon production per capita by (0.13-0.0015) 0.1285 metric tons. 
+\newline
+
+## Check model assumptions
+
+**1. Multicollinearity**
+
+```{r message=F, warning=F, results=F}
+vif(second_lm)
+```
+
+Variance Inflation Factors (VIF) showed that temp, trumpvote, and the interaction between the two variables have VIFs of 27, 42, and 72, respectively. Therefore, all are too high and the multicollinearity assumption is NOT met!
+\newline
+
+**2. Linearity**
+
+```{r message=F, warning=F,fig.align='center',fig.height=3, fig.width=6}
+plot(second_lm, which = 1)
+```
+
+There is a relatively straight line through the fitted values. Therefore, linearity assumption is met!
+\newline
+
+**3. Normal distribution of error**
+
+```{r message=F, warning=F,fig.align='center',fig.height=3, fig.width=6}
+plot(second_lm, which = 2)
+```
+
+```{r message=F, warning=F, results=F}
+resid_normal_p_second <- resid(second_lm) %>% shapiro_test()
+resid_normal_p_second
+```
+
+The majority of the data points are along the the standard normal distribution line. Shapiro-Wilk test of the residuals also yielded a nonsignificant p-value of `r round(resid_normal_p_second$p.value, 2)`. Therefore, the normal distribution assumption of error is met!
+\newline
+
+**4. Constant variance of error**
+
+```{r message=F, warning=F,fig.align='center',fig.height=3, fig.width=6}
+plot(second_lm, which = 3)
+```
+
+
+```{r message=F,warning=F,results=F}
+resid_var_p_second <- bptest(second_lm)
+resid_var_p_second
+```
+
+There is a relatively straight line through the fitted values. However, the studentized Breusch-Pagan test  yielded a significant p-value of `r round(resid_var_p_second$p.value, 2)`. Therefore, constant variance assumption is NOT met!
+
+```{r message=F, warning=F, results=F}
+which(cooks.distance(second_lm) > 3*mean(cooks.distance(second_lm)))
+cooks.distance(second_lm) > 3*mean(cooks.distance(second_lm))
+```
+Also, it is important to note that there are three leverage points in the model: 38, 40, and 48.
+\newline
+
+**5. Zero error mean**
+
+```{r message=F, warning=F, results=F}
+mean(resid(second_lm))
+```
+The mean of the residuals is `r round(mean(resid(second_lm)), 2)`. Therefore, this assumption is met!
+\newline
+
+**6. Uncorrelated errors**
+
+```{r message=F, warning=F,fig.align='center',fig.height=3, fig.width=6}
+plot(second_lm$residuals)
+```
+
+Errors are uncorrelated as they are randomly scattered around \( \epsilon \) = 0. The assumption is met! 
+\newline
+
+**In summary, all the assumptions are met, except for multicollinearity and homogeneity of variance. From the variable correlation plot, temp and trumpvote have no significant correlation with each other. Therefore, the interaction term between temp and trumpvote is likely the variable driving the high VIF.**
+\newline
+
+## Rerun second model without interaction
+
+The revised second model was: 
+
+\begin{center}
+\( \text{res.carbon.pc.mt} \sim \text{temp} + \text{trumpvote} \)
+\end{center}
+
+```{r message=F, warning=F, results=F}
+#remove rows 38, 40, 48
+
+remove_rows <- c(38, 40, 48)
+new_carbon <- carbon[-remove_rows, ]
+
+
+rev_second_lm <- lm(res.carbon.pc.mt ~ temp + trumpvote, data = new_carbon)
+summary(rev_second_lm)
+```
+
+The revised version of the second LM showed that the model was statistically significant (Adjusted R$^2$ = 0.75, F(2, 44) = 70.38, p < 0.001). For this model, temperature (p < 0.001, df = 47) and trumpvote (p = 0.001, df = 47) both have statistically significant coefficients.
+\newline
+A one degree increase in average annual temperature is associated with a decrease of approximately 0.055 metric tons carbon in residential carbon production per capita, holding percent Trump vote constant. In addition, a one percent increase in Trump voter, the residential carbon production per capita is 0.014 metric tons lower, assuming average annual temperature is held constant. 
+\newline
+
+
+## Check model assumptions
+
+**1. Multicollinearity**
+
+```{r message=F, warning=F, results=F}
+vif(rev_second_lm)
+```
+
+Variance Inflation Factors (VIF) showed that temp and trumpvote both have VIFs of 1. Therefore, the multicollinearity assumption is met!
+\newline
+
+**2. Linearity**
+
+```{r message=F, warning=F,fig.align='center',fig.height=3, fig.width=6}
+plot(rev_second_lm, which = 1)
+```
+
+There is a relatively straight line through the fitted values. Therefore, linearity assumption is met!
+\newline
+
+**3. Normal distribution of error**
+
+```{r message=F, warning=F,fig.align='center',fig.height=3, fig.width=6}
+plot(rev_second_lm, which = 2)
+```
+
+```{r message=F, warning=F, results=F}
+resid_normal_p_second_rev <- resid(rev_second_lm) %>% shapiro_test()
+resid_normal_p_second_rev
+```
+
+The majority of the data points are along the the standard normal distribution line. Shapiro-Wilk test of the residuals also yielded a nonsignificant p-value of `r round(resid_normal_p_second_rev$p.value, 2)`. Therefore, the normal distribution assumption of error is met!
+\newline
+
+**4. Constant variance of error**
+
+```{r message=F, warning=F,fig.align='center',fig.height=3, fig.width=6}
+plot(rev_second_lm, which = 3)
+```
+
+
+```{r message=F,warning=F,results=F}
+resid_var_p_second_rev <- bptest(rev_second_lm)
+resid_var_p_second_rev
+```
+
+There is a relatively straight line through the fitted values. However, the studentized Breusch-Pagan test  yielded a significant p-value of `r round(resid_var_p_second_rev$p.value, 2)`. Therefore, constant variance assumption is NOT met!
+
+```{r message=F, warning=F, results=F}
+which(cooks.distance(rev_second_lm) > 3*mean(cooks.distance(rev_second_lm)))
+cooks.distance(rev_second_lm) > 3*mean(cooks.distance(rev_second_lm))
+```
+Also, it is important to note that there are three more leverage points in the model: 2, 5, and 12.
+\newline
+
+**5. Zero error mean**
+
+```{r message=F, warning=F, results=F}
+mean(resid(rev_second_lm))
+```
+The mean of the residuals is `r round(mean(resid(rev_second_lm)), 2)`. Therefore, this assumption is met!
+\newline
+
+**6. Uncorrelated errors**
+
+```{r message=F, warning=F,fig.align='center',fig.height=3, fig.width=6}
+plot(rev_second_lm$residuals)
+```
+
+Errors are uncorrelated as they are randomly scattered around \( \epsilon \) = 0. The assumption is met! 
+\newline
+
+**In summary, all the assumptions are met, except for homogeneity of variance. However, removing three leverage points seemed to help as the p-value of the BP test increased. Removing more outliers could help, but data are discarded without knowing whether or not this is the best model to predict residential carbon per capita. Therefore, choosing the best model is needed. **
+\newline
+
+## Best model
+
+Using repeated 3-fold cross validation with 100 repeats, the best model was: 
+
+\begin{center}
+\( \text{res.carbon.pc.mt} \sim \text{temp} + \text{climatechange} + \text{urban.percent} + \text{west} \)
+\end{center}
+
+**Note: The code for model training is included in the Model Training R Script to reduce processing time of the Rmd PDF document.** 
+
+This model was reported to have the highest R-square (0.78) and lowest RMSE (0.295).
+
+```{r message=F, warning=F, results=F}
+third_lm <- lm(res.carbon.pc.mt ~ temp + climatechange + urban.percent + west, data = carbon)
+summary(third_lm)
+```
+
+The third (and the best) LM showed that the model was statistically significant (Adjusted R$^2$ = 0.80, F(4, 45) = 48.57, p < 0.001). For this model, temperature (p < 0.001, df = 45), climatechange (p < 0.001, df = 45), urban.percent (p = 0.002, df =45), and west (p < 0.001, df = 45) all have statistically significant coefficients.
+\newline
+
+On average: 
+
+A one degree increase in average annual temperature is associated with a decrease of approximately 0.054 metric tons carbon in residential carbon production per capita, holding other variables constant. 
+
+A one percent increase in climate change search, the residential carbon production per capita is 0.013 metric tons higher, assuming other variables are held constant. 
+
+A one percent increase in urban population, the residential carbon production per capita is 0.009 metric tons higher, assuming other variables are held constant.
+
+States in the west are associated with a decrease of approximately 0.635 metric tons carbon in residential carbon production per capita, holding other variables constant. 
+\newline
+
+## Check model assumptions
+
+**1. Multicollinearity**
+
+```{r message=F, warning=F, results=F}
+vif(third_lm)
+```
+
+Variance Inflation Factors (VIF) showed that all variables have low VIFs (between 1 and 2). Therefore, the multicollinearity assumption is met!
+\newline
+
+**2. Linearity**
+
+```{r message=F, warning=F,fig.align='center',fig.height=3, fig.width=6}
+plot(third_lm, which = 1)
+```
+
+There is a relatively straight line through the fitted values. Therefore, linearity assumption is met!
+\newline
+
+**3. Normal distribution of error**
+
+```{r message=F, warning=F,fig.align='center',fig.height=3, fig.width=6}
+plot(third_lm, which = 2)
+```
+
+```{r message=F, warning=F, results=F}
+resid_normal_p_third <- resid(third_lm) %>% shapiro_test()
+resid_normal_p_third
+```
+
+The majority of the data points are along the the standard normal distribution line. Shapiro-Wilk test of the residuals also yielded a nonsignificant p-value of `r round(resid_normal_p_third$p.value, 2)`. Therefore, the normal distribution assumption of error is met!
+\newline
+
+**4. Constant variance of error**
+
+```{r message=F, warning=F,fig.align='center',fig.height=3, fig.width=6}
+plot(third_lm, which = 3)
+```
+
+
+```{r message=F,warning=F,results=F}
+resid_var_p_third <- bptest(third_lm)
+resid_var_p_third
+```
+
+There is a relatively straight line through the fitted values. Also, the studentized Breusch-Pagan test yielded a non-significant p-value of `r round(resid_var_p_third$p.value, 2)`. Therefore, constant variance assumption is met!
+
+```{r message=F, warning=F, results=F}
+which(cooks.distance(third_lm) > 3*mean(cooks.distance(third_lm)))
+cooks.distance(third_lm) > 3*mean(cooks.distance(third_lm))
+```
+Also, it is important to note that there are three leverage points in the model: 3, 25, 38, and 40.
+\newline
+
+**5. Zero error mean**
+
+```{r message=F, warning=F, results=F}
+mean(resid(third_lm))
+```
+The mean of the residuals is `r round(mean(resid(third_lm)), 2)`. Therefore, this assumption is met!
+\newline
+
+**6. Uncorrelated errors**
+
+```{r message=F, warning=F,fig.align='center',fig.height=3, fig.width=6}
+plot(third_lm$residuals)
+```
+
+Errors are uncorrelated as they are randomly scattered around \( \epsilon \) = 0. The assumption is met! 
+\newline
+
+**Conclusion:**
+
+**In summary, all the assumptions are met and this is the best model to predict the residential carbon per capita, based on average annual temperature, percent climate change search, percent urban population, and whether or not a state is in the west. **
+\newline
+
+## Variable plots of best model
+
+Below is the variable plots:
+```{r message=F, warning=F, fig.align='center',fig.height=5, fig.width=6}
+avPlots(third_lm)
+```
+The relationships match with what was shown from the LM results.
+\newline
+
+Below is the coefficient plots:
+
+```{r message=F, warning=F,fig.align='center',fig.height=3, fig.width=6}
+library(ggstance)
+library(jtools)
+
+plot_coefs(third_lm)
+```
+
+## Predicting NC residential carbon per capita
+
+```{r message=F, warning=F, results=F}
+nc_resC_pred <- predict(third_lm, list(temp = 59, climatechange = 31,
+                                  urban.percent = 66.1, west = 0), interval = "prediction")
+nc_resC_pred
+
+nc_resC_conf <- predict(third_lm, list(temp = 59, climatechange = 31,
+                                  urban.percent = 66.1, west = 0), interval = "confidence")
+nc_resC_conf
+
+```
+
+The confidence interval of NC residential carbon per capita is: (0.667, 0.901).
+\newline
+
+The prediction interval of NC residential carbon per capita is: (0.215, 1.353).
