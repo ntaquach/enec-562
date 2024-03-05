@@ -1,0 +1,143 @@
+---
+title: "Week 6 Lab Report"
+author: "Nguyen Tien Anh Quach"
+date: "`r Sys.Date()`"
+output:
+  pdf_document: default
+  html_document: default
+chunk_output_type: inline
+indent: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = F)
+```
+
+```{r}
+setwd("C:/GitHub Projects/enec-562/Week 6 - Logistic Regression")
+sdat <- read.csv("sdat.csv")
+```
+
+```{r message=F, warning=F}
+library(dplyr)
+library(kableExtra)
+library(moments)
+library(tidyverse)
+library(GGally)
+library(car)
+library(rstatix)
+library(lmtest)
+library(caret)
+library(interactions)
+library(lattice)
+library(blorr)
+```
+
+# Question 1
+
+## 1. The simple logistic regression model was:
+
+\begin{center}
+\( \text{Status} \sim \text{WT} \)
+\end{center}
+
+```{r message=F, warning=F, results=F}
+# assign 0 to perished, and 1 to survived
+sdat <- sdat %>%
+  mutate(stat = ifelse(Status == "Survived", 1, 0))
+```
+
+```{r message=F, warning=F, results=F}
+simp_lgm <- glm(stat ~ WT, data=sdat, family = "binomial"(link = logit))
+summary(simp_lgm)
+
+#transform log odds to odds
+exp(coef(simp_lgm))
+
+```
+## 2. Boxplots of survival across weights
+
+```{r message=F,warning=F, fig.align='center',fig.height=5, fig.width=6}
+#Create the Scatter Plots:
+ggplot(sdat, aes(x = as.factor(stat), y = WT, fill = as.factor(stat))) +
+  geom_boxplot(position = position_dodge(width = 0.8)) +
+  theme(axis.text.y = element_text(colour = "black", size = 10, face = "bold"), 
+        axis.text.x = element_text(colour = "black", face = "bold", size = 10), 
+        legend.text = element_text(size = 9, face ="bold", colour ="black"), 
+        legend.position = "right", axis.title.y = element_text(face = "bold", size = 7), 
+        axis.title.x = element_text(face = "bold", size = 12, colour = "black", margin = margin(t=5)), 
+        axis.title.y.left = element_text(face = "bold", size = 12, colour = "black",margin=margin(r=5)),
+        legend.title = element_text(size = 8, colour = "black", face = "bold"), 
+        panel.background = element_blank(), panel.border = element_rect(colour = "black", fill = NA, size = 1.2),
+        legend.key=element_blank(),
+        plot.title = element_text(color = "black", size = 18, face = "bold", hjust = 0.5)) +
+  labs(
+  title = "",
+  x = expression(bold("Survival status")),
+  y = expression(bold("Weight")),
+  fill = "Survival Status"
+) + 
+  scale_fill_manual(labels = c("Perished", "Survived"), values = c("gray", "orange"))
+
+```
+
+Birds' weight is significantly and negatively associated with the survival odds. For every one unit increase in weight, the log odds of survival decreases by 0.42. In other words, as the odds ratio is 0.65, for every increase of 1 unit in weight, the chance for a bird to survive goes down by 35%.
+
+## 3. Wald confidence interval for $\beta_1$ 
+
+Calculated by hands: (-0.765, -0.084)
+
+```{r message=F, warning=FALSE}
+#lower
+
+-0.4244 - 1.96 * 0.1738  
+
+#upper 
+
+-0.4244 + 1.96 * 0.1738  
+
+```
+
+Calculated using confint: (-0.788, -0.101)
+
+```{r message=F, warning=F}
+confint(simp_lgm, level = 0.95)
+```
+
+## 4. Likelihood ratio test:
+
+```{r message=F, warning=F, results=F}
+Anova(simp_lgm,type="II",test="LR")
+```
+From the result, weight has a likelihood ratio chi-squared statistic of 6.7595 (df = 1, p = 0.009). Therefore, the result suggests that weight is statistically significant in predicting the survival outcome.
+
+## 5. Check model assumptions
+
+### a. Linearity:
+
+```{r message=F, warning=F, results=F}
+linear_stat_wt <- boxTidwell(stat ~ WT, data = sdat)
+linear_stat_wt$result[,3]
+
+```
+The Box-Tidwell test yielded a non-significant p-value of `r round(linear_stat_wt$result[,3], 2)`. Therefore, we fail to reject the null hypothesis and the linearity assumption is met!
+
+### b. Influential observation:
+
+```{r message=F, warning=F, results=F}
+std.resid<-rstandard(simp_lgm)
+z<-abs(std.resid)>3
+table(z)[TRUE]
+```
+There is no influential observation as no observation has the standardized residuals more than 3 or less than -3. 
+
+### c. Model performance:
+
+```{r message=F, warning=F, fig.align='center',fig.height=3, fig.width=6}
+library(pROC)
+test_prob = predict(simp_lgm, newdata = sdat, type = "response")
+test_roc = roc(sdat$stat ~ test_prob, plot = TRUE, print.auc = TRUE)
+```
+This simple model between survival status and weight is a relatively good model, as the AUC = 0.636. 
+
+

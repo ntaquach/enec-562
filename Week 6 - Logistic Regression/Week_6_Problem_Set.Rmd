@@ -22,9 +22,7 @@ length of tibio-tarsus, TT,
 width of skull, SK, 
 length of keel of sternum, KL.
 
-```{r}
-sdat <- read.csv("sdat.csv")
-```
+
 
 
 Question 1: 
