@@ -818,7 +818,6 @@ Lets use cross validation to test the best model for prediction. The caret packa
 cities_df <- cities_df %>% 
   mutate(paris = factor(paris, 
                         labels = make.names(levels(paris))))
-
 ```
 
 ```{r}

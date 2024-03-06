@@ -31,6 +31,7 @@ library(caret)
 library(interactions)
 library(lattice)
 library(blorr)
+library(performance)
 ```
 
 # Question 1
@@ -38,8 +39,10 @@ library(blorr)
 ## 1. The simple logistic regression model was:
 
 \begin{center}
-\( \text{Status} \sim \text{WT} \)
+\( \text{stat} \sim \text{WT} \)
 \end{center}
+
+For stat, a value of 0 means that a bird is perished and a value of 1 means that a bird survived. 
 
 ```{r message=F, warning=F, results=F}
 # assign 0 to perished, and 1 to survived
@@ -140,4 +143,276 @@ test_roc = roc(sdat$stat ~ test_prob, plot = TRUE, print.auc = TRUE)
 ```
 This simple model between survival status and weight is a relatively good model, as the AUC = 0.636. 
 
+# Question 2
+
+## 1. The full logistic regression model was:
+
+\begin{center}
+\( \text{stat} \sim \text{WT} + \text{AG} + \text{TL} + \text{AE} + \text{BH} + \text{HL} + \text{FL} + \text{TT} + \text{SK} + \text{KL} \)
+\end{center}
+
+```{r message=F, warning=F, results=F}
+full_lgm <- glm(stat ~ WT + AG + TL + AE + BH + HL + FL + TT + SK + KL, data=sdat, family = "binomial"(link = logit))
+summary(full_lgm)
+```
+The model resulted in only significant effects of weight (p = 0.009) and total length (p < 0.001) on survival odds. Having 10 variables in the logistic regression model may result in multicollinearity, thus, potentially mask the potentially effects of other variables on birds' survival odds. 
+
+### Checking for multicollinearity
+
+```{r message=F, warning=F, results=F}
+vif(full_lgm)
+```
+
+```{r message=F, warning=F,fig.align='center' }
+check_model(full_lgm)
+```
+
+Results from VIF and visual check of model assumptions revealed that most variables have their VIFs less than 5, except for FL (femur length) with VIF of 6.06. Therefore, I am going to remove FL from the model and re-run.
+
+### Revised full model
+
+\begin{center}
+\( \text{stat} \sim \text{WT} + \text{AG} + \text{TL} + \text{AE} + \text{BH} + \text{HL} + \text{TT} + \text{SK} + \text{KL} \)
+\end{center}
+
+```{r message=F, warning=F, results=F}
+full_revised_lgm <- glm(stat ~ WT + AG + TL + AE + BH + HL + TT + SK + KL, data=sdat, family = "binomial"(link = logit))
+summary(full_revised_lgm)
+
+exp(coef(full_revised_lgm))
+```
+
+The model results showed that birds' weight, total length, and humerus length are significantly associated with the survival odds. Holding all other variables constant:
+\newline
+
+For every one unit increase in weight, the log odds of survival decreases by 0.88. In other words, as the odds ratio is 0.41, for every increase of 1 unit in weight, the chance for a bird to survive goes down by 59%.
+\newline
+
+For every one unit increase in total length, the log odds of survival decreases by 0.74. In other words, as the odds ratio is 0.47, for every increase of 1 unit in weight, the chance for a bird to survive goes down by 53%.
+\newline
+
+In regard to humerus length, the odds ratio and log odds are uninterpretable. This may be due to some violated model assumptions!
+
+## 2. Checking for linearity 
+
+```{r message=F, warning=F, fig.align='center',fig.height=5, fig.width=8}
+sdat_sel <- sdat %>% 
+  mutate(logit = predict(full_revised_lgm)) 
+sdat_sel <- sdat_sel %>% dplyr::select(logit, WT, TL, AE, BH, HL, FL, TT, SK, KL)
+
+sdat_sel <- sdat_sel %>%
+  gather(key = "predictors", value = "predictor.value", -logit)
+
+sdat_sel$predictor.value <- as.numeric(sdat_sel$predictor.value)
+#Create the Scatter Plots:
+ggplot(sdat_sel, aes(logit, predictor.value))+
+  geom_point(size = 0.5, alpha = 0.5) +
+  geom_smooth(method = "loess") + 
+  theme_bw() + 
+  facet_wrap(~predictors, scales = "free_y")
+```
+
+From the visual check, it looks like the relationships between logit and (1) AE, (2) BH, (3) FL, (4) KL, (5) SK, and (6) TT. Therefore, I am excluding these variables from the model. In addition, I am excluding AG because whenever AG is included in the model, the Box Tidwell test fails. The model now becomes: 
+
+\begin{center}
+\( \text{stat} \sim \text{WT} + \text{TL} + \text{HL} \)
+\end{center}
+
+```{r message=F, warning=F, results=F}
+linear_full_revised_model <- boxTidwell(stat ~ WT + TL + HL , data = sdat)
+linear_full_revised_model$result[,3]
+```
+Results from the Box-Tidwell yielded non-significant values for all three predictor variables, WT (p = `r round(linear_full_revised_model$result[1,3], 2`), TL (p = `r round(linear_full_revised_model$result[2,3], 2`), and HL (p = `r round(linear_full_revised_model$result[3,3], 2`).
+
+### Re-run the new revised model one more time
+
+```{r message=F, warning=F, results=F}
+revised_lgm <- glm(stat ~ WT + TL + HL, data=sdat, family = "binomial"(link = logit))
+summary(revised_lgm)
+
+exp(coef(revised_lgm))
+
+exp(coef(revised_lgm))/(1+exp(coef(revised_lgm)))
+
+```
+
+The model results showed that birds' weight, total length, and humerus length are significantly associated with the survival odds. Holding all other variables constant:
+\newline
+
+For every one unit increase in weight, the log odds of survival decreases by 0.57. In other words, as the odds ratio is 0.57, for every increase of 1 unit in weight, the chance for a bird to survive goes down by 43%.
+\newline
+
+For every one unit increase in total length, the log odds of survival decreases by 0.54. In other words, as the odds ratio is 0.58, for every increase of 1 unit in total length, the chance for a bird to survive goes down by 42%.
+\newline
+
+For every one unit increase in humerus length, the log odds of survival increases by 75.5. In other words, as the odds ratio is 5.9e32, for every increase of 1 unit in humerus length, the chance for a bird to survive goes up by many many times (or the probability of surviving is 100%).
+\newline
+
+
+### Checking other assumptions
+
+```{r message=F, warning=F, fig.align='center'}
+check_model(revised_lgm)
+```
+
+Visually checking, it looks like the multicollinearity and normality assumptions are met. In addition, there seems to be no influential observation. Model assumptions are not violated!
+
+## 3. Cross validation for best model
+
+```{r message=F, warning=F, results=F}
+sdat <- sdat %>% 
+  mutate(stat_name = ifelse(stat == 0, "Zero_Label", "One_Label"))
+```
+
+```{r}
+set.seed(234)
+library(caret)
+library(gtools)
+pastePerm<- function(row, names){
+  keep<- which(row==1)
+  if(length(keep)==0){
+    return('1')
+  }else{
+    return(paste(names[keep],collapse='+'))
+  }
+}
+my_sqrt <- function(var1){
+  sqrt(var1)
+}
+dredgeform<- function(pred, covars, alwaysIn=''){
+  p<- length(covars)
+  perm.tab<- permutations(2, p, v=c(0,1), repeats.allowed=T)
+  myforms<- NULL
+  for(j in 1:nrow(perm.tab)){
+    myforms[j]<- pastePerm(perm.tab[j,], covars)
+  }
+  myforms<- paste0(pred, '~',myforms)
+  return(myforms)
+}
+allformulas<- dredgeform(pred = "stat_name", covars = c("AE", "AG", "BH", "FL", "HL",
+                                                   "KL", "SK", "TL", "TT", "WT"))
+
+compare_var <- as.data.frame(matrix(ncol = 4, nrow = 0))
+colnames(compare_var) <- c("formula", "AUC", "sensitivity", "specificity")
+
+for ( i in 2:length(allformulas)) {
+  
+train.control <- trainControl(method = "repeatedcv", number = 3, repeats = 10, 
+                     summaryFunction=twoClassSummary, 
+                     classProbs=T,
+                     savePredictions = T)
+
+# Train the full model
+model <- train(as.formula(allformulas[i]), data = sdat, method = "glm", family = "binomial", trControl = train.control, metric = "ROC")
+
+# Summarize the results
+compare_var[i, 1] <- allformulas[i]
+compare_var[i, 2] <- model$results$ROC
+compare_var[i, 3] <- model$results$Sens
+compare_var[i, 4] <- model$results$Spec
+
+
+}
+
+compare_var %>% arrange(-AUC)
+```
+
+Using cross validation, the best model was: 
+
+\begin{center}
+\( \text{stat} \sim  \text{TL} + \text{HL} + \text{KL} + \text{WT} \)
+\end{center}
+
+This was based on several parameters. First, the model has high sensitivity (0.782) and specificity (0.683), although some other models are a bit higher in either parameter. Second, most importantly, the model above has the highest AUC (0.869), which implies that the predictors in that model performed better than the others in other sets of models. 
+
+## Best model interpretation
+
+```{r message=F, warning=F, results=F}
+best_lgm <- glm(stat ~ WT + TL + HL + KL, data=sdat, family = "binomial"(link = logit))
+summary(best_lgm)
+
+exp(coef(best_lgm))
+
+exp(coef(best_lgm))/(1+exp(coef(best_lgm)))
+
+```
+
+The model results showed that birds' weight, total length, humerus length, and keel of sternum length are significantly associated with the survival odds. Holding all other variables constant:
+\newline
+
+For every one unit increase in weight, the log odds of survival decreases by 0.79. In other words, as the odds ratio is 0.45, for every increase of 1 unit in weight, the chance for a bird to survive goes down by 55%.
+\newline
+
+For every one unit increase in total length, the log odds of survival decreases by 0.66. In other words, as the odds ratio is 0.52, for every increase of 1 unit in total length, the chance for a bird to survive goes down by 48%.
+\newline
+
+For every one unit increase in humerus length and keel of sternum length, the log odds of survival increase by 72.3 and 27.4. In other words, as the odds ratios are 2.59e31 and 7.76e11, for every increase of 1 unit in humerus length and keel of sternum length, the chance for a bird to survive goes up by many many times (or the probability of surviving is 100%).
+\newline
+
+### Checking assumptions
+
+```{r message=F, warning=F, fig.align='center'}
+check_model(best_lgm)
+```
+
+```{r message=F, warning=F, results=F}
+#boxtidwell
+
+boxTidwell(stat ~ WT + TL + HL + KL, data=sdat)
+```
+
+Visually checking, it looks like the multicollinearity and normality assumptions are met. In addition, there seems to be no influential observation. The Box-Tidwell test yielded non-significant results for all variables, WT (p = 0.93), TL (p = 0.99), HL (p = 0.80), and KL (p = 0.36). Model assumptions are not violated!
+
+## 4. Fit model
+
+### Fit model through 30% of data
+
+```{r message=F, warning=F, results=F}
+
+training.samples <- sdat$stat %>%
+  createDataPartition(p = 0.7, list = FALSE)
+train.data  <- sdat[training.samples, ]
+test.data <- sdat[-training.samples, ]
+
+# Make predictions and compute the R2, RMSE and MAE
+predictions_full <- best_lgm %>% predict(test.data)
+data.frame( R2 = R2(predictions_full, test.data$stat),
+            RMSE = RMSE(predictions_full, test.data$stat),
+            MAE = MAE(predictions_full, test.data$stat))
+
+# Define training control
+set.seed(123) 
+train.control <- trainControl(method = "repeatedcv", number = 5, repeats = 10)
+# Train the  model
+model_best <- train(stat ~ WT + TL + HL + KL, data=sdat, method = "glm",
+                     family = "binomial"(link = logit), trControl = train.control)
+# Summarize the results
+print(model_best)
+
+```
+### Assess specificity and sensitivity
+
+```{r message=F, warning=F, results=T}
+get_logistic_pred = function(mod, data, res = "y", pos = 1, neg = 0, cut = 0.5) {
+  probs = predict(mod, newdata = data, type = "response")
+  ifelse(probs > cut, pos, neg)
+}
+
+test_pred_60 = get_logistic_pred(best_lgm, data = sdat, res = "default", 
+                                 pos = 1, neg = 0, cut = 0.6)
+
+test_tab_60 = table(predicted = test_pred_60, actual = sdat$stat)
+
+test_con_mat_60 = confusionMatrix(test_tab_60, positive = "1")
+test_con_mat_60
+```
+From the confusion matrix, the accuracy of the model at the cutoff of 0.6 is 0.79, which means that the model makes the accurate prediction of survival outcome 79% of the time. The sensitivity of the model is 0.76, which means that the model correctly predicts a survived bird "survived" 76% of the time. The specificity of the model is 0.83, which means that 17% of the time, the model predicts that a bird survived, when it actually did not.
+
+### Plot ROC curve
+
+```{r message=F, warning=F, fig.align='center',fig.height=3, fig.width=6}
+library(pROC)
+best_prob = predict(best_lgm, newdata = train.data, type = "response")
+best_roc = roc(train.data$stat ~ best_prob, plot = TRUE, print.auc = TRUE)
+```
 
