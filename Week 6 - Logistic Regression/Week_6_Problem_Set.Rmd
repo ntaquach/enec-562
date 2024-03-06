@@ -37,7 +37,7 @@ Question 1:
 Question 2: 
 1. Fit the full model using all of the variables. Decide whether to include or exclude predictor variables based on     multicollinearity (2.5)
 
-2. Check the assumptions of linearity. Decide whether or not to include or exclude predictor variables based on          linearity. (2.5)
+2. Check the assumptions of linearity. Decide whether or not to include or exclude predictor variables based on linearity. (2.5)
 
 3. Find the best combination of variables for predicting survival using cross validation. Describe what this method is doing (5) 
     - Interpret the coefficients of this model. (5)
