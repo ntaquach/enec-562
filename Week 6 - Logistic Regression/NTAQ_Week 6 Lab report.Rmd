@@ -163,7 +163,7 @@ The model resulted in only significant effects of weight (p = 0.009) and total l
 vif(full_lgm)
 ```
 
-```{r message=F, warning=F,fig.align='center' }
+```{r message=F, warning=F,fig.align='center',fig.height=8, fig.width=8 }
 check_model(full_lgm)
 ```
 
@@ -191,7 +191,7 @@ For every one unit increase in weight, the log odds of survival decreases by 0.8
 For every one unit increase in total length, the log odds of survival decreases by 0.74. In other words, as the odds ratio is 0.47, for every increase of 1 unit in weight, the chance for a bird to survive goes down by 53%.
 \newline
 
-In regard to humerus length, the odds ratio and log odds are uninterpretable. This may be due to some violated model assumptions!
+For every one unit increase in humerus length, the log odds of survival increases by 52.7. In other words, as the odds ratio is 8.2e22, for every increase of 1 unit in humerus length, the chance for a bird to survive goes up by many many times (or the probability of surviving is 100%).
 
 ## 2. Checking for linearity 
 
@@ -212,7 +212,7 @@ ggplot(sdat_sel, aes(logit, predictor.value))+
   facet_wrap(~predictors, scales = "free_y")
 ```
 
-From the visual check, it looks like the relationships between logit and (1) AE, (2) BH, (3) FL, (4) KL, (5) SK, and (6) TT. Therefore, I am excluding these variables from the model. In addition, I am excluding AG because whenever AG is included in the model, the Box Tidwell test fails. The model now becomes: 
+From the visual check, it looks like the relationships between logit and (1) AE, (2) BH, (3) FL, (4) KL, (5) SK, and (6) TT are not linear. Therefore, I am excluding these variables from the model. In addition, I am excluding AG because whenever AG is included in the model, the Box Tidwell test fails. The model now becomes: 
 
 \begin{center}
 \( \text{stat} \sim \text{WT} + \text{TL} + \text{HL} \)
@@ -222,7 +222,7 @@ From the visual check, it looks like the relationships between logit and (1) AE,
 linear_full_revised_model <- boxTidwell(stat ~ WT + TL + HL , data = sdat)
 linear_full_revised_model$result[,3]
 ```
-Results from the Box-Tidwell yielded non-significant values for all three predictor variables, WT (p = `r round(linear_full_revised_model$result[1,3], 2`), TL (p = `r round(linear_full_revised_model$result[2,3], 2`), and HL (p = `r round(linear_full_revised_model$result[3,3], 2`).
+Results from the Box-Tidwell yielded non-significant values for all three predictor variables, WT (p = `r round(linear_full_revised_model$result[1,3], 2)`), TL (p = `r round(linear_full_revised_model$result[2,3], 2)`), and HL (p = `r round(linear_full_revised_model$result[3,3], 2)`).
 
 ### Re-run the new revised model one more time
 
@@ -235,6 +235,9 @@ exp(coef(revised_lgm))
 exp(coef(revised_lgm))/(1+exp(coef(revised_lgm)))
 
 ```
+\begin{center}
+\( \text{stat} \sim \text{WT} + \text{TL} + \text{HL} \)
+\end{center}
 
 The model results showed that birds' weight, total length, and humerus length are significantly associated with the survival odds. Holding all other variables constant:
 \newline
@@ -246,12 +249,10 @@ For every one unit increase in total length, the log odds of survival decreases 
 \newline
 
 For every one unit increase in humerus length, the log odds of survival increases by 75.5. In other words, as the odds ratio is 5.9e32, for every increase of 1 unit in humerus length, the chance for a bird to survive goes up by many many times (or the probability of surviving is 100%).
-\newline
-
 
 ### Checking other assumptions
 
-```{r message=F, warning=F, fig.align='center'}
+```{r message=F, warning=F, fig.align='center', fig.height=7, fig.width=8}
 check_model(revised_lgm)
 ```
 
@@ -259,65 +260,7 @@ Visually checking, it looks like the multicollinearity and normality assumptions
 
 ## 3. Cross validation for best model
 
-```{r message=F, warning=F, results=F}
-sdat <- sdat %>% 
-  mutate(stat_name = ifelse(stat == 0, "Zero_Label", "One_Label"))
-```
-
-```{r}
-set.seed(234)
-library(caret)
-library(gtools)
-pastePerm<- function(row, names){
-  keep<- which(row==1)
-  if(length(keep)==0){
-    return('1')
-  }else{
-    return(paste(names[keep],collapse='+'))
-  }
-}
-my_sqrt <- function(var1){
-  sqrt(var1)
-}
-dredgeform<- function(pred, covars, alwaysIn=''){
-  p<- length(covars)
-  perm.tab<- permutations(2, p, v=c(0,1), repeats.allowed=T)
-  myforms<- NULL
-  for(j in 1:nrow(perm.tab)){
-    myforms[j]<- pastePerm(perm.tab[j,], covars)
-  }
-  myforms<- paste0(pred, '~',myforms)
-  return(myforms)
-}
-allformulas<- dredgeform(pred = "stat_name", covars = c("AE", "AG", "BH", "FL", "HL",
-                                                   "KL", "SK", "TL", "TT", "WT"))
-
-compare_var <- as.data.frame(matrix(ncol = 4, nrow = 0))
-colnames(compare_var) <- c("formula", "AUC", "sensitivity", "specificity")
-
-for ( i in 2:length(allformulas)) {
-  
-train.control <- trainControl(method = "repeatedcv", number = 3, repeats = 10, 
-                     summaryFunction=twoClassSummary, 
-                     classProbs=T,
-                     savePredictions = T)
-
-# Train the full model
-model <- train(as.formula(allformulas[i]), data = sdat, method = "glm", family = "binomial", trControl = train.control, metric = "ROC")
-
-# Summarize the results
-compare_var[i, 1] <- allformulas[i]
-compare_var[i, 2] <- model$results$ROC
-compare_var[i, 3] <- model$results$Sens
-compare_var[i, 4] <- model$results$Spec
-
-
-}
-
-compare_var %>% arrange(-AUC)
-```
-
-Using cross validation, the best model was: 
+Using cross validation (codes found in CV for best model R script), the best model was: 
 
 \begin{center}
 \( \text{stat} \sim  \text{TL} + \text{HL} + \text{KL} + \text{WT} \)
@@ -347,11 +290,10 @@ For every one unit increase in total length, the log odds of survival decreases 
 \newline
 
 For every one unit increase in humerus length and keel of sternum length, the log odds of survival increase by 72.3 and 27.4. In other words, as the odds ratios are 2.59e31 and 7.76e11, for every increase of 1 unit in humerus length and keel of sternum length, the chance for a bird to survive goes up by many many times (or the probability of surviving is 100%).
-\newline
 
 ### Checking assumptions
 
-```{r message=F, warning=F, fig.align='center'}
+```{r message=F, warning=F, fig.align='center', fig.height=7, fig.width=8}
 check_model(best_lgm)
 ```
 
@@ -365,7 +307,11 @@ Visually checking, it looks like the multicollinearity and normality assumptions
 
 ## 4. Fit model
 
-### Fit model through 30% of data
+### Fit model through 70% of data
+
+\begin{center}
+\( \text{stat} \sim \text{WT} + \text{TL} + \text{HL} + \text{KL} \)
+\end{center}
 
 ```{r message=F, warning=F, results=F}
 
@@ -374,45 +320,40 @@ training.samples <- sdat$stat %>%
 train.data  <- sdat[training.samples, ]
 test.data <- sdat[-training.samples, ]
 
-# Make predictions and compute the R2, RMSE and MAE
-predictions_full <- best_lgm %>% predict(test.data)
-data.frame( R2 = R2(predictions_full, test.data$stat),
-            RMSE = RMSE(predictions_full, test.data$stat),
-            MAE = MAE(predictions_full, test.data$stat))
 
-# Define training control
-set.seed(123) 
-train.control <- trainControl(method = "repeatedcv", number = 5, repeats = 10)
 # Train the  model
-model_best <- train(stat ~ WT + TL + HL + KL, data=sdat, method = "glm",
-                     family = "binomial"(link = logit), trControl = train.control)
+model_best <- glm(stat ~ WT + TL + HL + KL, data=train.data, family = "binomial"(link = logit))
 # Summarize the results
-print(model_best)
+summary(model_best)
 
 ```
-### Assess specificity and sensitivity
+### Assess specificity and sensitivity on 30% data prediction
 
-```{r message=F, warning=F, results=T}
+```{r message=F, warning=F, results=F}
 get_logistic_pred = function(mod, data, res = "y", pos = 1, neg = 0, cut = 0.5) {
   probs = predict(mod, newdata = data, type = "response")
   ifelse(probs > cut, pos, neg)
 }
 
-test_pred_60 = get_logistic_pred(best_lgm, data = sdat, res = "default", 
+test_pred_60 = get_logistic_pred(model_best, data = test.data, res = "default", 
                                  pos = 1, neg = 0, cut = 0.6)
 
-test_tab_60 = table(predicted = test_pred_60, actual = sdat$stat)
+test_tab_60 = table(predicted = test_pred_60, actual = test.data$stat)
 
 test_con_mat_60 = confusionMatrix(test_tab_60, positive = "1")
 test_con_mat_60
 ```
-From the confusion matrix, the accuracy of the model at the cutoff of 0.6 is 0.79, which means that the model makes the accurate prediction of survival outcome 79% of the time. The sensitivity of the model is 0.76, which means that the model correctly predicts a survived bird "survived" 76% of the time. The specificity of the model is 0.83, which means that 17% of the time, the model predicts that a bird survived, when it actually did not.
+From the confusion matrix, the accuracy of the model at the cutoff of 0.6 is 0.88, which means that the model makes the accurate prediction of survival outcome 88% of the time. The sensitivity of the model is 0.77, which means that the model correctly predicts a survived bird "survived" 77% of the time. The specificity of the model is 1.0, which means that 0% of the time, the model predicts that a bird survived, when it actually did not.
 
-### Plot ROC curve
+### Plot ROC curve on test data
 
 ```{r message=F, warning=F, fig.align='center',fig.height=3, fig.width=6}
+#train data: in sample
+#test data: out of sample
+
 library(pROC)
-best_prob = predict(best_lgm, newdata = train.data, type = "response")
-best_roc = roc(train.data$stat ~ best_prob, plot = TRUE, print.auc = TRUE)
+best_prob = predict(model_best, newdata = test.data, type = "response")
+best_roc = roc(test.data$stat ~ best_prob, plot = TRUE, print.auc = TRUE)
 ```
 
+This model is a great model. Even when it was trained on 70% of the data to predict the other 30%, the AUC is very high (0.953).  
