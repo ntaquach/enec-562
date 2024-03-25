@@ -1,0 +1,775 @@
+---
+title: "Midterm ENEC 562"
+author: "Nguyen Tien Anh Quach"
+date: "`r Sys.Date()`"
+output:
+  pdf_document: default
+  html_document: default
+chunk_output_type: inline
+indent: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = F)
+```
+
+```{r message=F, warning=F}
+library(dplyr)
+library(rstatix)
+library(ggplot2)
+library(ggpubr)
+library(ggsignif)
+library(car)
+library(tidyr)
+library(ggpmisc)
+library(caret)
+library(GGally)
+library(lmtest)
+library(gvlma)
+library(interactions)
+```
+
+# Question 1
+
+```{r}
+setwd("C:/GitHub Projects/enec-562/Midterm")
+salt <- read.csv("salt.csv")
+salt$salt = factor(salt$salt)
+salt$block = factor(salt$block)
+```
+
+## Hypothesis
+
+H~0~: The average plant biomass among six different salt treatments have no difference, after accounting for the effect of geographic proximity.
+\newline
+
+H~a~: At least one pair of salt treatments has a significantly different effect on the average plant biomass, after accounting for the effect of geographic proximity.
+
+## Test justification
+
+For this question, I am using the **blocked ANOVA** to test for the effects of salt treatment on plant biomass. This is because aside from the six different salt treatments, the geographic proximity may also affect the outcome and thus, needs to be accounted as a block effect. 
+
+## Assumptions of blocked ANOVA
+
+```{r message=F, warning=F, results=F}
+#identify outliers
+salt %>%
+  group_by(salt) %>%
+  identify_outliers(biomass)
+
+#check for normality
+
+salt %>%
+  group_by(salt) %>%
+  summarise(length_results = length(biomass))
+
+# only 20 for each year, do Shapiro-Wilk
+
+salt_normal <- salt %>%
+  group_by(salt) %>%
+  shapiro_test(biomass)
+
+salt_normal$p[salt_normal$salt == 15]
+```
+
+a. There are two outliers reported, but none is extreme. 
+\newline
+b. The plant biomass among six salt treaments are normally distributed, as Shapiro-Wilk test reported non-significant p-values for the 10 g/m$^2$ (`r round(salt_normal$p[salt_normal$salt == 10],2)`), 15 g/m$^2$ (`r round(salt_normal$p[salt_normal$salt == 15], 2)`), 20 g/m$^2$ (`r round(salt_normal$p[salt_normal$salt == 20],2)`), 25 g/m$^2$ (`r round(salt_normal$p[salt_normal$salt == 25],2)`), 30 g/m$^2$ (`r round(salt_normal$p[salt_normal$salt == 30],2)`), and 35 g/m$^2$ (`r round(salt_normal$p[salt_normal$salt == 35],2)`). Normality of biomass within each treatment is also shown in Figure 1.
+
+```{r message=F, warning=F, fig.align='center',fig.height=3, fig.width=6}
+ggqqplot(salt, "biomass", facet.by = "salt")
+```
+\begin{center}
+Figure 1. QQ plot of plant biomass collected from six levels of salt treatment. 
+\end{center}
+```{r message=F, warning=F, results=F}
+salt_treat_var <- salt %>% levene_test(biomass ~ salt)
+salt_block_var <- salt %>% levene_test(biomass ~ block)
+```
+
+c. Levene's test for equal variance returned the non-significant p-value of `r round(salt_treat_var$p,2)` across salt treatments and of `r round(salt_block_var$p,2)` across blocks of geographic proximity. Therefore, the assumption of equal variance is not violated.
+
+Figure 2 is to visualize how plant biomass varies among salt treatment groups:
+
+```{r message=F, warning=F, fig.align='center',fig.height=3, fig.width=6}
+salt %>% ggplot(aes(x = salt, y = biomass)) + geom_boxplot() +
+  theme_minimal()
+```
+\begin{center}
+Figure 2. Box plot of plant biomass collected from six salt treatments.
+\end{center}
+
+## Blocked ANOVA test results
+
+```{r message=F, warning=F, results=F}
+salt_aov <- salt %>% anova_test(biomass ~ salt + block, detailed =T)
+salt_aov
+```
+
+Results showed that salt treatment (F(5,15) = 17.71, p = `r salt_aov$p[salt_aov$Effect == "salt"]`) and geographic proximity (F(3, 15) = 9.42, p = `r salt_aov$p[salt_aov$Effect == "block"]`) had significant effects on the average plant biomass. 
+
+## Post-hoc test
+
+```{r message=F, warning=F, results=F}
+salt_tukey <- salt %>% tukey_hsd(biomass ~ salt + block)
+salt_tukey
+```
+Tukey HSD test showed that the average plant biomass were different among:
+
+a. 10 vs 20 g/m$^2$ (p = `r salt_tukey$p.adj[salt_tukey$term == "salt" & salt_tukey$group1 == 10 & salt_tukey$group2 == 20]`)
+
+b. 10 vs 25 g/m$^2$ (p = `r salt_tukey$p.adj[salt_tukey$term == "salt" & salt_tukey$group1 == 10 & salt_tukey$group2 == 25]`)
+
+c. 10 vs 30 g/m$^2$ (p = `r salt_tukey$p.adj[salt_tukey$term == "salt" & salt_tukey$group1 == 10 & salt_tukey$group2 == 30]`)
+
+d. 10 vs 35 g/m$^2$ (p = `r salt_tukey$p.adj[salt_tukey$term == "salt" & salt_tukey$group1 == 10 & salt_tukey$group2 == 35]`)
+
+e. 15 vs 20 g/m$^2$ (p = `r salt_tukey$p.adj[salt_tukey$term == "salt" & salt_tukey$group1 == 15 & salt_tukey$group2 == 20]`)
+
+f. 15 vs 25 g/m$^2$ (p = `r salt_tukey$p.adj[salt_tukey$term == "salt" & salt_tukey$group1 == 15 & salt_tukey$group2 == 25]`)
+
+g. 15 vs 30 g/m$^2$ (p = `r salt_tukey$p.adj[salt_tukey$term == "salt" & salt_tukey$group1 == 15 & salt_tukey$group2 == 30]`)
+
+h. 15 vs 35 g/m$^2$ (p = `r salt_tukey$p.adj[salt_tukey$term == "salt" & salt_tukey$group1 == 15 & salt_tukey$group2 == 35]`)
+
+The difference in average plant biomass among salt treatments and blocks can also be visualized in Figure 3: 
+```{r message=F, warning=F, results=F, fig.align='center',fig.height=3, fig.width=6}
+mean_biomass <- salt %>%
+  group_by(salt, block) %>%
+  summarize(mean_biomass = mean(biomass)) %>% arrange(salt)
+mean_biomass
+
+
+# Plot line graph of mean_biomass
+ggplot(mean_biomass, aes(x = salt, y = mean_biomass, color = block, group = block)) +
+  geom_point() +
+  geom_line() +
+  labs(x = "Salt Treatment (g/m2)", y = "Mean Plant Biomass") +
+  scale_color_discrete(name = "Block") +
+  theme_minimal()
+```
+
+\begin{center}
+Figure 3. Line graph of average plant biomass among salt treatments and blocks.
+\end{center}
+
+# Question 2
+
+```{r}
+pangolin <- read.csv("ScaleThickness.csv")
+pangolin$supp = factor(pangolin$supp)
+pangolin$dose = factor(pangolin$dose)
+```
+
+## Hypothesis
+
+H~0~: The average scale thickness among different supplement and doses have no difference AND there is no interaction effect between supplement and dose.
+\newline
+
+H~a~: At least one pair of supplement and dose treatments has a significantly different effect on the average scale thickness AND there is an interaction effect between supplement and dose on the average scale thickness.
+
+## Test justification
+
+Scale thickness is a quantitative variable and tested on two different categorical variables, supplement and dose. As I am trying to test for the significant difference in average scale thickness in different groups of supplements and doses, a **two-way ANOVA** works best. 
+
+## Assumptions of two-way ANOVA
+
+```{r message=F, warning=F, results=F}
+#identify outliers
+pangolin %>%
+  group_by(supp, dose) %>%
+  identify_outliers(thick)
+```
+
+a. There are two outliers reported, but none is extreme. 
+
+b. I built a linear model of the scale thickness, the supplement treatment, and the dose treatment. I then tested the normality of the model residuals. As shown in the QQ plot (Fig. 4), all the points fall approximately along the reference line. In addition, Shapiro-Wilk test yielded a non-significant p-value of 0.50. Therefore, normality assumption is met!
+
+```{r message=F, warning=F, results=F, fig.align='center',fig.height=4, fig.width=6}
+#check for normality
+
+# Build the linear model
+model  <- lm(thick ~ dose*supp,
+             data = pangolin)
+# Create a QQ plot of residuals
+ggqqplot(residuals(model))
+
+shapiro_test(residuals(model))
+
+```
+\begin{center}
+Figure 4. QQ plot of linear model residuals (thick ~ dose * supp). 
+\end{center}
+
+```{r message=F, warning=F, results=F}
+pangolin_var <- pangolin %>% levene_test(thick ~ dose*supp)
+```
+
+c. Levene's test for equal variance returned the non-significant p-value of `r round(pangolin_var$p,2)`. Therefore, the assumption of equal variance is not violated.
+
+## Two-way ANOVA test results
+
+```{r message=F, warning=F, results=F}
+pangolin.aov <- pangolin %>% anova_test(thick ~ dose*supp)
+pangolin.aov
+```
+Results showed that supplement treatment (F(1, 54) = 15.57, p = `r pangolin.aov$p[pangolin.aov$Effect == "supp"]`) and dose treatment (F(2, 54) = 92, p = `r pangolin.aov$p[pangolin.aov$Effect == "dose"]`) had significant effects on the average pangolin scale thickness. In addition, there was a statistically significant interaction effect between the supplement and dose treatments on the average scale thickness (F(2, 54) = 4.11, p = `r pangolin.aov$p[pangolin.aov$Effect == "dose:supp"]`).
+
+## Post-hoc test
+
+As the interaction effect is significant, I am going to determine the simple main effect of each treatment and conduct multiple pairwise comparisons. 
+
+### Simple main effect
+
+```{r message=F, warning=F, results=F}
+pangolin %>%
+  group_by(supp) %>%
+  anova_test(thick ~ dose, error = model)
+```
+The simple main effect of “dose” on scale thickness was statistically significant at \(\alpha\) of 0.025 for VitB (F(2, 54) = 62.54, p < 0.001) and Zinc (F(2, 54) = 33.56, p < 0.001) supplements.
+
+### Pairwise comparison
+
+```{r message=F, warning=F, results=F}
+library(emmeans)
+pwc <- pangolin %>% 
+  group_by(supp) %>%
+  tukey_hsd(thick ~ dose) 
+pwc
+
+```
+Tukey HSD test showed that the average scale thickness were different among:
+\newline
+
+VitB Supplement:
+
+a. 0.5 vs 1 mg (p = `r pwc$p.adj[pwc$supp == "VitB" & pwc$group1 == 0.5 & pwc$group2 == 1]`)
+
+b. 0.5 vs 2 mg (p = `r pwc$p.adj[pwc$supp == "VitB" & pwc$group1 == 0.5 & pwc$group2 == 2]`)
+
+c. 1 vs 2 mg (p = `r pwc$p.adj[pwc$supp == "VitB" & pwc$group1 == 1 & pwc$group2 == 2]`)
+\newline
+
+Zinc Supplement:
+
+a. 0.5 vs 1 mg (p = `r pwc$p.adj[pwc$supp == "Zinc" & pwc$group1 == 0.5 & pwc$group2 == 1]`)
+
+b. 0.5 vs 2 mg (p = `r pwc$p.adj[pwc$supp == "Zinc" & pwc$group1 == 0.5 & pwc$group2 == 2]`)
+
+The difference in scale thickness among groups of supplement and dose treatments can be observed in Figure 5 below:
+
+```{r message=F, warning=F, fig.align='center',fig.height=4, fig.width=6}
+# Visualization: box plots with p-values
+pwc <- pwc %>% add_xy_position(x = "Supplement")
+
+ggboxplot(pangolin, x = "dose", y = "thick", color = "supp",
+          palette = c("#00AFBB", "#E7B800")) +
+  stat_pvalue_manual(pwc) +
+  labs(
+    subtitle = get_test_label(pangolin.aov, detailed = TRUE),
+    caption = get_pwc_label(pwc)
+    ) +
+  labs( x = "Dose (mg)", y = "Scale thickness", 
+        color = "Supplement")
+```
+\begin{center}
+Figure 5. Boxplot of pangolin scale thickness among groups of supplement and dose treatment. 
+\end{center}
+
+# Question 3
+
+```{r message=F, warning=F, results=F}
+internet <- read.csv("Internet.csv")
+internet$X = factor(internet$X)
+str(internet)
+
+#modify data
+
+internet_wil <- internet %>%
+    #select(-turbo.net, -speed.web) %>%
+  pivot_longer(cols = c("turbo.net", "speed.web"), 
+               names_to = "group", 
+               values_to = "loading.times")
+
+internet_wil <- internet_wil %>%
+  mutate(group = factor(group, labels = c("Turbo Net", "Speed Web")))
+```
+
+## Hypothesis
+
+H~0~: The average loading time is the same between the two providers.
+\newline
+
+H~a~: The average loading time is different between the two providers.
+
+## Test justification
+
+As I am comparing the mean loading time between the two independent internet providers, it is best to use **two-sample t-test**. If data do not meet the assumptions of the test, I will attempt to transform the data and redo the test. In addition, I will conduct a **Wilcoxon rank sum test** as a non-parametric test.
+
+## Assumptions of two-sample t-test
+
+```{r message=F, warning=F, results=F}
+internet %>% identify_outliers(turbo.net)
+internet %>% identify_outliers(speed.web)
+```
+a. There is one outlier for data from each internet provider, Turbo Net and Speed Web. However, both are not extreme outliers.
+
+```{r message=F, warning=F, results=F}
+internet %>%
+  summarise(
+    shapiro_turbo = shapiro.test(turbo.net)$p.value,
+    shapiro_speed = shapiro.test(speed.web)$p.value
+  )
+```
+b. Despite looking quite normal (Fig. 6), the Shapiro-Wilk test showed that loading times from both internet providers are non-normal.
+
+```{r message=F, warning=F, results=F, fig.align='center',fig.height=3, fig.width=6}
+df_long <- tidyr::pivot_longer(internet, cols = c(turbo.net, speed.web), names_to = "variable", values_to = "value")
+
+ggqqplot(df_long, x = "value", facet.by = "variable") +
+  labs(title = "")
+```
+\begin{center}
+Figure 6. QQ plot of loading times from two internet providers, Turbo Net and Speed Web. 
+\end{center}
+
+## Data transformation
+
+Now I am attempting to log transform the loading times and re-checking the assumptions.
+
+```{r message=F, warning=F, results=F}
+internet$log.turbo.net = log(internet$turbo.net)
+internet$log.speed.web = log(internet$speed.web)
+
+#transform the data very quick
+
+internet_mod <- internet %>%
+    select(-turbo.net, -speed.web) %>%
+  pivot_longer(cols = c("log.turbo.net", "log.speed.web"), 
+               names_to = "group", 
+               values_to = "log.loading.times")
+
+internet_mod <- internet_mod %>%
+  mutate(group = factor(group, labels = c("Turbo Net", "Speed Web")))
+
+```
+
+## Assumptions of two-sample t-test
+
+```{r message=F, warning=F, results=F}
+internet_mod %>% group_by(group) %>%
+  identify_outliers(log.loading.times)
+```
+
+a. There is no outlier reported this time.
+
+```{r message=F, warning=F, results=F}
+internet_mod %>% group_by(group) %>%
+  shapiro_test(log.loading.times)
+```
+
+b. Log-transformed loading times look more normal as most points fall approximately on the line. In addition, Shapiro-Wilk test yielded non-significant p-values (Turbo net: p = 0.40; Speed Web: p = 0.40).
+
+```{r message=F, warning=F, results=F, fig.align='center',fig.height=3, fig.width=6}
+ggqqplot(internet_mod, x = "log.loading.times", facet.by = "group") 
+```
+
+\begin{center}
+Figure 7. QQ plot of log-transformed loading times from two internet providers, Turbo Net and Speed Web. 
+\end{center}
+
+```{r message=F, warning=F, results=F}
+internet_mod %>% levene_test(log.loading.times ~ group)
+```
+The p-value of the Levene’s test is non-significant (p = 0.18), suggesting that there is no significant difference between the variances of the two internet providers' loading times.
+
+## Two-sample t-test result
+
+```{r message=F, warning=F, results=F}
+internet.t.test <- internet_mod %>% 
+  t_test(log.loading.times ~ group, detailed = T, var.equal = T) %>%
+  add_significance()
+internet.t.test
+
+#effect size
+
+internet_mod %>%  cohens_d(log.loading.times ~ group, var.equal = T)
+
+```
+
+Results from two-sample t-test showed that the log loading times of two internet providers are not significantly different (t (38) = -0.59; p = 0.56) with negligible effect size (d = -0.19). Therefore, I failed to reject the null hypothesis!
+
+The distribution of loading times can be seen below in Figure 8.
+
+```{r message=F, warning=F, results=F, fig.align='center',fig.height=3, fig.width=6}
+internet.t.test <- internet.t.test %>% add_xy_position(x = "group")
+
+ggboxplot(
+  internet_mod, x = "group", y = "log.loading.times", 
+  ylab = "Log-transformed loading times", xlab = "Groups", add = "jitter"
+  ) + stat_pvalue_manual(internet.t.test, tip.length = 0) +
+  labs(subtitle = get_test_label(internet.t.test, detailed = TRUE))
+```
+\begin{center}
+Figure 8. Boxplot of log-transformed loading times from two internet providers, Turbo Net and Speed Web and the denoted t-test results. 
+\end{center}
+
+## Wilcoxon rank sum test
+
+Now I am going to conduct the Wilcoxin rank sum test on the original dataset.
+
+```{r message=F, warning=F, results=F}
+internet.wil.test <- internet_wil %>% 
+  wilcox_test(loading.times ~ group) %>%
+  add_significance()
+internet.wil.test
+
+#effect size
+
+internet_wil %>%  wilcox_effsize(loading.times ~ group)
+
+```
+Similar to the two-sample t-test, the Wilcoxon rank sum test yielded non-significant p-value of 0.602 and small effect size (0.085). Therefore, I failed to reject the null hypothesis!
+
+## Conclusion
+
+Overall, the two different tests (two-sample t-test on log-transformed time and Wilcoxon rank sum test) both showed that the average loading times are not significantly different. 
+
+# Question 4
+
+```{r message=F, warning=F, results=F}
+epi <- read.csv("yaleEPI2018.csv")
+
+epi <- epi %>%
+  select(GDPpc, EPI2018Score)
+```
+
+## Hypothesis
+
+H~0~: There is no significant linear relationship between mean GDP per capita and mean EPI.
+
+H~a~: There is a significant linear relationship between mean GDP per capita and mean EPI.
+
+## Correlation between the two variables
+
+```{r message=F, warning=F, results=F}
+epi %>% cor_test(GDPpc, EPI2018Score)
+```
+The correlation between GDP per capita and EPI is 0.7. This means that GDP per capita and EPI are positively and significantly (p < 0.001) correlated. The higher the GDP per capita, the higher the EPI.
+
+## Scatterplot of the two variables
+
+The relationship between GDP per capita and EPI does not look linear (Fig. 9). It looks like the high GDP per capita data points are strongly influencing the relationship. A log-transformation of the GDP per capita may help.
+
+```{r message=F, warning=F, results=F, fig.align='center',fig.height=3, fig.width=6}
+epi %>% ggplot(aes(x = GDPpc, y = EPI2018Score)) + geom_point() + 
+  theme_minimal()
+```
+\begin{center}
+Figure 9. Scatterplot of GDP per capita and EPI. 
+\end{center}
+
+### Transform GDPpc
+
+I log-transformed GDP per capita and the relationship between the two variables looks so much more linear now (Fig. 10), as the high GDP per capita values now become less of an outlier.
+
+```{r message=F, warning=F, results=F, fig.align='center',fig.height=3, fig.width=6}
+epi$log.GDPpc = log(epi$GDPpc)
+
+epi %>% ggplot(aes(x = log.GDPpc, y = EPI2018Score)) + geom_point() + 
+  theme_minimal()
+```
+\begin{center}
+Figure 10. Scatterplot of log-transformed GDP per capita and EPI. 
+\end{center}
+
+## Revised hypothesis
+
+H~0~: There is no significant linear relationship between mean log-transformed GDP per capita and mean EPI.
+
+H~a~: There is a significant linear relationship between mean log-transformed GDP per capita and mean EPI.
+
+## Linear regression
+
+```{r message=F, warning=F, results=F}
+lm.epi <- lm( EPI2018Score~ log.GDPpc, data = epi)
+summary(lm.epi)
+```
+Mean log-transformed GDP per capita has a significantly positive linear relationship with mean EPI (Fig. 11). A 1 unit increase in mean log-transformed GDP per capita resulting in a 8.68 unit increase in mean EPI (R$^2$ = 0.66, Adj. R$^2$ = 0.66, F(1,178) = 354.5, p < 0.001). Alternatively, as the coefficient of GDPpc is 8.68, for every 1% increase in GDP per capita, the EPI increases by about 0.08. The regression equation is : 
+$$\hat{y_{i}} = -23.28 + 8.68 \times log.GDPpc{i}$$ 
+
+One thing to notice is that the intercept of the linear model is -23.28, which means that when the mean log-transformed GPD per capita is 0, the mean EPI is -23.28. That is not realistic!
+
+## Interpretation
+
+### p-value
+
+The null hypothesis is rejected. The p-value of the linear model is significant (p < 0.001). However, this does not mean that the relationship between mean GPD per capita and mean EPI is significant. The p-value only indicates that mean log-transformed GPD per capita and mean EPI have a statistically significant relationship.
+
+### R-squared value
+
+The adj R-squared value of 0.66 means that approximately 66% of the variability in the EPI score can be explained by the log-transformed GDP per capita.
+
+```{r message=F, warning=F, results=F, fig.align='center',fig.height=3, fig.width=6}
+pred <- as.data.frame(predict(lm.epi, newdata = epi,
+        interval = "prediction",
+        level = 0.95))
+
+pred$log.GDPpc <- epi$log.GDPpc
+
+epi %>% ggplot(aes(x = log.GDPpc, y = EPI2018Score)) +
+  geom_point()+
+  labs(y="2018 EPI Score", x="Log GDP per capita") + theme_minimal() + 
+  stat_smooth(method=lm, fill = "#56a0d3", alpha = 0.5) +
+  stat_poly_eq(aes(label = paste(after_stat(eq.label),
+                                 after_stat(rr.label), sep = "*\", \"*"), colour = "black")) +   geom_line(data = pred,
+            aes(x = log.GDPpc, y = lwr), color = "red", size = 1) + 
+  geom_line(data = pred,
+            aes(x = log.GDPpc, y = upr), color = "red", size = 1)
+```
+\begin{center}
+Figure 11. Scatterplot of log-transformed GDP per capita and EPI with confidence (blue) and prediction (red) intervals. Linear equation and R-squared value are denoted.  
+\end{center}
+
+# Question 5
+
+```{r message=F, warning=F, results=F}
+ozone <- read.csv("ozone.data.csv")
+
+#log ozone
+ozone$log.ozone = log(ozone$ozone)
+```
+
+## Log-transformation justification
+
+I went through the entire question using raw ozone concentration. However, the model's assumption of the normal distribution of error failed every time. Therefore, I decided to log transformed the ozone concentration (from ozone to log.ozone) and the normality assumption was barely met. I am not showing the entire process in the exam because it may be too repetitive to run the model, test the assumptions, and rerun the model again. 
+
+## Hypothesis
+
+H~0~: There is no significant linear relationship between mean log-transformed ozone concentration and mean solar radiation, wind speed, and temperature. 
+
+H~a~: There is a significant linear relationship between mean log-transformed ozone concentration and (1) at least one independent variable, mean solar radiation, wind speed, and temperature and (2) at least an interaction effects among the independent variables.
+
+## Model selection
+
+Model training codes can be found in "Q5 Model Training.R". This is to reduce the knitting time.
+
+From the results of repeated 3-fold cross validation with 100 repeats, the best model was: 
+
+\begin{center}
+\( \text{log.ozone} \sim \text{rad} + \text{temp} + \text{wind} + \text{wind*temp} \)
+\end{center}
+
+This model was reported to have the lowest RMSE (0.52) and highest R-squared value (0.66).
+
+## Run multiple linear regression
+
+```{r message=F, warning=F, results=F}
+ozone.lm <- lm(log.ozone ~ rad+temp+wind+wind*temp, data = ozone)
+summary(ozone.lm)
+```
+
+```{r message=F, warning=F}
+library(knitr)
+
+# Get the summary of the linear regression model
+summary_table <- summary(ozone.lm)
+
+# Convert the summary to a data frame
+summary_df <- as.data.frame(summary_table$coefficients)
+
+# Print the summary as a table
+kable(summary_df, format = "markdown", col.names = c("Coefficient", "Estimate", "Std. Error", "t value", "Pr(>|t|)"))
+
+```
+The result showed that the model was statistically significant (Adjusted R$^2$ = 0.67, F(4, 106) = 45.28, p < 0.001).The regression equation is :
+$$\hat{y_{i}} = -2.58 + 0.002 \times rad{i} + 0.078 \times temp{i} + 0.16 \times wind{i} - 0.003 \times temp*wind{i}$$ 
+\newline
+
+For this model, temperature (p < 0.001, df = 106), radiation (p< 0.001, df = 106), and the interaction effect between temp and wind (p = 0.031) have statistically significant coefficients.
+\newline
+
+A 1 unit increase in mean radiation results in a 0.002 unit increase in mean log-transformed ozone concentration. 
+
+A 1 unit increase in mean temperature results in a 0.078 unit increase in mean log-transformed ozone concentration. 
+
+A 1 unit increase in mean wind speed results in a 0.16 unit increase in mean log-transformed ozone concentration. However, the effect of wind on log-transformed ozone concentration was not significant.
+
+A 1 unit increase in mean temperature, holding wind speed constant, results in a 0.003 unit decrease in mean log-transformed ozone concentration. 
+
+## Check model assumptions
+
+```{r message=F, warning=F, results=F, fig.align='center', fig.height= 6}
+vif(ozone.lm)
+
+gvlma(ozone.lm)
+
+library(performance)
+check_model(ozone.lm)
+```
+
+```{r message=F, warning=F, results='hide'}
+#mean resid
+mean(resid(ozone.lm))
+
+#uncorrelated error
+#plot(ozone.lm$residuals)
+```
+VIFs are extremely high due to interaction terms. Therefore, we can safely ignore them!Mean residuals are approximately 0. Errors are uncorrelated as they are randomly scattered around \( \epsilon \) = 0. These assumptions are met! 
+\newline
+
+Results from GVLMA and Model Performance Check showed that (1) independent and dependent variables have no linear correlations and (2) the assumptions of residuals' normality and constant variance were not met. 
+
+```{r message=F, warning=F, results=F}
+which(cooks.distance(ozone.lm) > 3*mean(cooks.distance(ozone.lm)))
+cooks.distance(ozone.lm) > 3*mean(cooks.distance(ozone.lm))
+```
+In addition, there are many influential points: 11, 17, 18, 20, 30, 45, 77, 85. I am removing them and rerunning the model. 
+\newline
+
+## Rerun model
+
+```{r message=F, warning=F, results=F}
+remove_rows <- c(11, 17, 18, 20, 30, 45, 77, 85)
+ozone.filtered <- ozone[-remove_rows, ]
+
+#rerun model
+ozone.rerun.lm <- lm(log.ozone ~ rad+temp+wind+wind*temp, data = ozone.filtered)
+summary(ozone.rerun.lm)
+
+```
+
+```{r message=F, warning=F}
+# Get the summary of the linear regression model
+summary_table <- summary(ozone.rerun.lm)
+
+# Convert the summary to a data frame
+summary_df <- as.data.frame(summary_table$coefficients)
+
+# Print the summary as a table
+kable(summary_df, format = "markdown", col.names = c("Coefficient", "Estimate", "Std. Error", "t value", "Pr(>|t|)"))
+
+```
+
+The result showed that the model was statistically significant (Adjusted R$^2$ = 0.72, F(4, 98) = 67.22, p < 0.001).The regression equation is :
+$$\hat{y_{i}} = -1.89 + 0.002 \times rad{i} + 0.07 \times temp{i} + 0.095 \times wind{i} - 0.002 \times temp*wind{i}$$ 
+\newline
+
+For this model, only temperature (p < 0.001, df = 98) and radiation (p< 0.001, df = 98) had significant coefficients. Wind (p = 0.30) and the interaction effect between temp and wind (p = 0.087) became non-significant in this model.
+\newline
+
+A 1 unit increase in mean radiation results in a 0.002 unit increase in mean log-transformed ozone concentration. 
+
+A 1 unit increase in mean temperature results in a 0.07 unit increase in mean log-transformed ozone concentration. 
+
+## Check model assumptions
+
+```{r message=F, warning=F, results=F, fig.align='center', fig.height= 6}
+gvlma(ozone.rerun.lm)
+
+library(performance)
+check_model(ozone.rerun.lm)
+```
+
+```{r message=F, warning=F, results=F}
+#mean resid
+mean(resid(ozone.rerun.lm))
+
+#uncorrelated error
+#plot(ozone.rerun.lm$residuals)  #figure keeps showing, i have to comment it
+
+```
+
+Mean residuals are approximately 0. Errors are uncorrelated as they are randomly scattered around \( \epsilon \) = 0. These assumptions are met! Also, results from GVLMA and Model Performance Check showed that all assumptions are now met (normality, constant variance)
+\newline
+
+## Plots
+
+Below are the added variable plots that show the relationship between the independent variable and dependent variable when a variable is only included as a main effect:
+
+```{r message=F, warning=F, fig.align='center',fig.height=5, fig.width=6}
+avPlots(ozone.rerun.lm)
+```
+
+The relationships match with what was shown from the LM results.
+\newline
+
+And although non-significant, below is the plot showing the interactions between temp and wind:
+```{r message=F, warning=F, fig.align='center',fig.height=3, fig.width=6}
+
+interact_plot(ozone.rerun.lm, pred = temp, modx = wind,
+              plot.points = TRUE, point.alpha = 0.2,
+              x.label = "Temperature",
+              y.label = "Ozone concentration",
+              legend.main  = "Wind Speed")
+```
+# Question 6
+
+## Research question
+
+What were the environmental factors that influence the distributions of coral reef fish specieson a sub-regional scale?
+
+## Model type
+
+The authors chose to use the GLM (General Linear Model). Specifically, they used binary logistic regression due to the binomial nature of the dependent variable (presence or absence of fish species).
+
+## Data and variables
+
+### Data 
+
+The authors used fish data from three different sources that are, in total, available at 105 sites. They also collected physical data from remote sensing, community analysis, ocean charts, and local and expert knowledge. The authors then identified a subset of uncorrelated predictor variables as proxies for several environmental variables.
+
+### Variables
+
+The response variable is the presence or absence of fish species.
+\newline
+
+The predictor variables are: 
+
+1. Reef class: categorical, 5 classes
+2. Bioregions: categorical, 9 classes
+3. Exposure: ordinal, 4 classes / CHOSEN!
+4. Presence of land-water interface: ordinal, 2 classes / CHOSEN!
+5. Mean depth at 500 m proximity: numerical / CHOSEN!
+6. Mean depth at 1000 m proximity: numerical
+7. Distance to nearest estuary: numerical / CHOSEN!
+8. Distance to nearest land: numerical
+
+## Table 4 results
+
+The regression equation for *Caesio lunaris* was: 
+
+\begin{center}
+\( \text{ln(p/1-p)} = -1.086 + 2.6 * \text{Exposure} + 0.003 * \text{Depth}\)
+\end{center}
+
+```{r message=F, warning=F, results=F}
+exp(2.6)
+exp(0.003)
+```
+
+Table 4 in general presented information about whether fishes' habitat preferences depend on any physical characteristics. For *Caesio lunaris*, its habitat preference depends on the exposure variable and depth variable. 
+
+Holding all other variables constant:
+
+For every one unit increase in exposure, the log odds of detection/presence increase by 2.6. In other words, as the odds ratio is 13.46, for every increase of 1 unit in exposure, the chance to find a *Caesio lunaris* goes up by about 1200%.
+\newline
+
+For every one unit increase in depth, the log odds of detection/presence increase by 0.003. In other words, as the odds ratio is 1.003, for every increase of 1 unit in depth, the chance to find a *Caesio lunaris* goes up by about 0.3%.
+\newline
+
+Table 4 also has information about the efficiency of a model for each species based on its AIC scores.
+
+## Model comparison
+
+The authors compare models based on a reference model and its AIC (95% CI). Whenever the AIC of a model of a fish species falls inside the 95% CI of the reference AIC, that means the distribution of that fish species did not differ significantly from a random distribution. Ecologically speaking, the fish species did not have any preference for a habitat and usually, they are the ones that are abundant and common at many sites.
+
+## Limitations
+
+1. Data collected came from many different sources, thus contain uncertainties (i.e., different levels of accuracy). Other free datasets can come from NOAA and NASA, but the resolution is too coarse to be applicable to the study area.
+\newline
+
+2. The response of fish species to the environmental predictors may not be linear. Therefore, using GLM may not be the best method to predict how fish species are distributed based on physical characteristics. The authors gave an example about the suspended solids, how they change non-linearly from estuary to outer reef, and how fish response may also not be linear.
+
+3. First, I want to mention the spatial autocorrelation. Fish can swim to places as they are a mobile organism. In addition, closer sites may represent similar habitat features. Second, there are so many other environmental and chemical variables that may affect the distribution of fish (e.g., pH, DO, etc.). Having only 4 variables at the end that are only about depth and distance is underestimating other confounding factors. Lastly, I want to mention that using stepwise selection to choose model may not be the best option. Authors can use cross validation to select the best model, which have many advantages over stepwise selection (e.g., training-test data sets, RMSE, no AIC).
+

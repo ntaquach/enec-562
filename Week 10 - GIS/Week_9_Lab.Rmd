@@ -1,0 +1,442 @@
+---
+title: "gis_in_R"
+author: "Sarah Roberts"
+date: "10/20/2020"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+In this lab you will learn how to load, manipulate, and display geospatial data in R using a case study of superfund sites and environmental justice in North Carolina. Please read this paper in preparation (similar methods but in South Carolina) https://www.liebertpub.com/doi/pdf/10.1089/env.2008.0547 
+
+Burwell-Naney, Kristen, et al. "Spatial disparity in the distribution of superfund sites in South Carolina: an ecological study." Environmental Health 12.1 (2013): 96.
+
+Steps: 
+
+1. Download census data for NC 
+2. Map a selected variable 
+3. Incorporate EPA hazardous waste sites into the map and dataset 
+4. Determine which census tracts are within a certain distance of hazardous waste sites
+5. Compare the average median income of tracts within a certain distance of hazardous waste sites to those outside of that distance 
+6. Problem Set
+
+
+# packages 
+```{r, warning = FALSE, message = FALSE, results = 'hide'}
+library(tidyverse)
+library(tidycensus)
+library(sf) #this is the spatial package
+library(tmap) #this is the mapping
+library(rmapshaper)
+library(ggplot2)
+library(spdep)
+
+```
+
+The main package we will use for dealing with spatial data in R is the tidy friendly sf package. sf stands for simple features. What is a feature? A feature is thought of as a thing, or an object in the real world, such as a building or a tree. A county can be a feature. As can a city and a neighborhood. Features have a geometry describing where on Earth the features are located, and they have attributes, which describe other properties. 
+
+Another spatial package is sp. This package is getting a little outdated, and doesn't coordinate with tidyverse as well so we won't use it here. 
+
+Bringing in spatial data
+
+sf is the specific type of data object that deals with spatial information in R. Sf is just another way R stores data. But please note that spatial data themselves outside of R can take on many different formats. We’ll be working with shapefiles right now. Shapefiles are not the only type of spatial data, but they are the most commonly used. Let’s be clear here: sf objects are R specific and shapefiles are a general format of spatial data. This is like tibbles are R specific and csv files are a general format of non spatial data.
+
+We will be working with census geographies in this lab. There are two major packages for bringing in Census shapefiles into R: tidycensus and tigris. These packages allow users to directly download and use TIGER Line shapefiles from the Census Bureau.
+
+# Downloading Census Data
+
+One of the first steps in the Data Wrangling process is to acquire and read in data. There are two ways to bring Census data into R: Using the Census API and downloading from an online source.
+
+Using the Census API
+
+You can bring data directly into R using the Census Application Program Interface (API). An API allows for direct requests for data in machine-readable form. That is, rather than having to navigate to a website using a browser, scroll around to find a dataset, download that dataset once you find it, save that data onto your hard drive, and then bring the data into R, you just tell R to retrieve data directly using one or two lines of code.
+
+In order to directly download data from the Census API, you need a key. You can sign up for a free key here (https://api.census.gov/data/key_signup.html), which should only take a few seconds to send to your email. Type your key in quotes using the census_api_key() command (my key is added in there for now - you should replace with your own!)
+
+
+```{r, warning = FALSE, message = FALSE, results = 'hide'}
+census_api_key("3ae0b5f2990a2cc0b1386b85d0f937d66b8ddc74")
+```
+
+The function for downloading American Community Survey (ACS) Census data is get_acs(). The command for downloading decennial Census data is get_decennial(). Getting variables using the Census API requires knowing the variable ID - and there are thousands of variables (and thus thousands of IDs) across the different Census files. To rapidly search for variables, use the commands load_variables() and View(). Because we’ll be using the ACS in this lab, let’s check the variables in the 5-year period (2014-2018) using the following commands.
+
+```{r}
+v18 <- load_variables(2018, "acs5", cache = TRUE)
+View(v18)
+```
+
+A window should have popped up showing you a record layout of the 2014-18 ACS. To search for specific data, select “Filter” located at the top left of this window and use the search boxes that pop up. For example, type in “Hispanic” in the box under “Label”. You should see near the top of the list the first set of variables we’ll want to download - race/ethnicity. Let’s extract that data and total population for North Carolina counties using the get_acs() command
+
+
+```{r, warning = FALSE, message = FALSE, results = 'hide'}
+nc <- get_acs(geography = "tract", 
+              year = 2018,
+              variables = c(tpopr = "B03002_001", 
+                            nhwhite = "B03002_003", nhblk = "B03002_004", 
+                            nhasn = "B03002_006", hisp = "B03002_012", medincome = "B19013_001"), 
+              state = "NC",
+              survey = "acs5", 
+              geometry = TRUE)
+```
+
+In the above code, we specified the following arguments
+
+geography: The level of geography we want the data in; in our case, the tract. Other geographic options can be found here.  https://walker-data.com/tidycensus/articles/basic-usage.html.
+
+year: The end year of the data (because we want 2014-2018, we use 2018).
+
+variables: The variables we want to bring in as specified in a vector you create using the function c(). Note that we created variable names of our own (e.g. “nhwhite”) and we put the ACS IDs in quotes (“B03002_003”). Had we not done this, the variable names will come in as they are named in the ACS, which are not very descriptive.
+
+state: We can filter the counties to those in a specific state. Here it is “NC” for North Carolina. If we don’t specify this, we get all counties in the United States. 
+
+survey: The specific Census survey were extracting data from. We want data from the 5-year American Community Survey, so we specify “acs5”. The ACS comes in 1-, 3-, and 5-year varieties.
+
+geometry: This command tells R to bring in the spatial features associated with the geography you specified in the command, in our case North Carolina tracts. Note, if you just want to download a data frame, and not a geometry output, just remove the part "geometry = TRUE". 
+
+Type in ? get_acs() to see the full list of options.
+
+When you bring in a dataset, the first thing you should always do is view it just to make sure you got what you expected. You can do this directly in the console by just typing out the file name.
+
+```{r}
+nc
+```
+You’ll find that the description of the object now indicates that it is a simple feature collection with 5 fields (attributes or columns of data).
+The geometry_type indicates that the spatial data are in MULTIPOLYGON form (as opposed to points or lines, the other basic vector data forms).
+bbox stands for bounding box, which indicates the spatial extent of the features (from left to right). epsg and proj4string are related to the coordinate reference system
+
+The data frame contains the column geometry. The tidy data rule for simple features is: we have a data frame where each feature forms a row. A single column (a list-column) contains the geometry for each observation. This geometry is what makes this data frame spatial. Remember that a tibble is a data frame. Hence, an sf objective is basically a tibble, or has tibble like qualities. This means that we can use nearly all of the functions you've learned with tidyverse here.  Hooray for consistency!
+
+note moe stands for margin of error here. We can probably take that out 
+
+```{r}
+nc <- nc %>% dplyr::select(-moe)
+
+```
+
+You will likely encounter a variable with a name that is not descriptive. Although you should have a codebook to crosswalk variable names with descriptions, the more descriptive the names, the more efficient your analysis will be and the less likely you are going to make a mistake. Use the command rename() to - what else? - rename a variable! Let’s rename the variable NAME to Tract in the nc dataset. 
+
+```{r}
+nc <-nc %>% rename(Tract = NAME)
+names(nc)
+```
+
+We’ll need to “spread” or reshape the dataset to get it to the form we want. This will convert the dataset from long to wide. Use the function pivot_wider() and save the tidy dataset into nc1. 
+
+```{r}
+nc1 <- nc %>% pivot_wider(names_from = "variable", values_from = "estimate")
+nc1
+```
+
+look at the difference between nc and nc1. 
+
+
+Creating new variables
+
+The mutate() function allows you to create new variables within your dataset. This is important when you need to transform variables in some way - for example, calculating a ratio or adding two variables together.
+
+You can use the mutate() command to generate as many new variables as you would like. For example, let’s construct five new variables in nc1: the proportion of residents who are non-Hispanic white, non-Hispanic Asian, non-Hispanic black, and Hispanic. Name these variables pnhwhite, pnhasn, pnhblk, and phisp respectively.
+
+Note that you can create new variables based on the variables you just created in the same line of code (Wow!). For example, you can create a variable named diff that represents the difference between the percent non-Hispanic white and percent non-Hispanic black after creating both variables within the same mutate() command.
+
+```{r}
+nc1 <- nc1 %>% mutate(pnhwhite = nhwhite/tpopr, pnhasn = nhasn/tpopr, 
+              pnhblk = nhblk/tpopr, phisp = hisp/tpopr,
+              diff = pnhwhite-phisp)
+
+```
+View nc1 to verify that you’ve successfully created these variables.
+
+#plotting 
+Mapping in R
+
+Now that you’ve got your spatial data in and wrangled, the next natural step is to map something. There are several functions in R that can be used for mapping. We won’t go through all of them, in fact I am just going to focus on ggplot. 
+
+## ggplot
+
+The way ggplot() works for mapping is similar to when we used it for making graphs. ggplot() is the foundation and we add elements to it using other functions. 
+
+For mapping purposes, geom_sf() will add a sf object to a plot. Let’s first map NC median income. 
+
+Eliminate the tract borders by using color = NA inside geom_sf().
+```{r}
+ggplot() +
+  geom_sf(data = nc1, aes(fill = medincome), color = NA)
+```
+
+We make layout adjustments to the map by adding functions after geom_sf() using the addition operator +. For example, we can specify a title using the labs() function.
+
+```{r}
+ggplot(nc1) +
+  geom_sf(aes(fill = medincome), color = NA) + 
+  labs(title = "Median income in North Carolina Tracts") 
+```
+
+Don’t like a blue color scale? You can change it using the scale_fille_gradient() function.
+
+```{r}
+ggplot(nc1) +
+  geom_sf(aes(fill = medincome), color = NA) + 
+  labs(title = "Median income in North Carolina Tracts") + 
+  scale_fill_gradient(low = "white", high = "red", na.value ="gray", name = "Median income") 
+```
+
+I’m not a big fan of the border, the gridlines, and the geographic coordinate labels. The function theme() controls these features. We eliminate these features from the map.
+
+```{r}
+ggplot(nc1) +
+  geom_sf(aes(fill = medincome), color = NA) + 
+  labs(title = "Median income in North Carolina Tracts") + 
+  scale_fill_gradient(low = "white", high = "red", na.value ="gray", name = "Median income") +  
+  theme( axis.text =  element_blank(),
+    axis.ticks =  element_blank(),
+    panel.background = element_blank())
+```
+Want to just zoom in on the triangle? 
+
+```{r}
+ggplot(nc1) +
+  geom_sf(aes(fill = medincome), color = NA) + 
+  labs(title = "Median income in The triangle Tracts") + 
+  scale_fill_gradient(low = "white", high = "red", na.value ="gray", name = "Median income") +  
+  theme( axis.text =  element_blank(),
+    axis.ticks =  element_blank(),
+    panel.background = element_blank()) + 
+    coord_sf(xlim=c(-80, -78), ylim=c(35,36.5), expand = FALSE)
+```
+Lets add in a point here 
+35.908195, -79.051729
+
+```{r}
+ggplot(nc1) +
+  geom_sf(aes(fill = medincome), color = NA) + 
+  geom_point(aes(x = -79.051729, y = 35.908195), colour = "blue") + 
+  geom_text(aes(x = -79, y = 35.85), label = "US Right now!" ) +
+  labs(title = "Median income in the triangle", y = "", x = "") + 
+  scale_fill_gradient(low = "white", high = "red", na.value ="gray", name = "Median income") +  
+  theme( axis.text =  element_blank(),
+    axis.ticks =  element_blank(),
+    panel.background = element_blank()) + 
+    coord_sf(xlim=c(-80, -78), ylim=c(35,36.5), expand = FALSE)
+```
+
+## Interactive maps
+
+So far we’ve created static maps. That is, maps that don’t “move”. But, we’re all likely used to Google maps - maps that we can move around and zoom into. 
+
+```{r}
+library(mapview)
+mapview(nc1, zcol = "medincome")
+```
+
+
+# Back to stats 
+Okay that was fun, now lets do some statistics. 
+
+# Distance to superfund sites. 
+We want to know if there is a difference between the median income of census tracts that are close to hazardous waste sites compared to those far away. 
+
+## Load EPA data 
+Hazardous waste data is available on the US EPA website. I went and downloaded it for NC 
+https://www.epa.gov/frs/epa-frs-facilities-state-single-file-csv-download 
+
+Make sure you read about the data in the metadata file. 
+
+```{r, warning = FALSE, message = FALSE}
+NC_pollut <- read.csv("STATE_SINGLE_NC.csv")
+
+
+#lets see how many of each type of site we have
+NC_pollut %>% 
+  group_by(SITE_TYPE_NAME) %>%
+  summarise(no_rows = length(SITE_TYPE_NAME))
+
+```
+
+
+Lets just pull out the contaminated, potentially contaminated, and brownfields sites. 
+```{r}
+NC_pollut <- NC_pollut %>% filter(SITE_TYPE_NAME == "BROWNFIELDS SITE" | SITE_TYPE_NAME == "CONTAMINATED SITE" | SITE_TYPE_NAME == "POTENTIALLY CONTAMINATED SITE")
+
+
+```
+
+make it a spatial object to map 
+Note, we need to remove the rows with missing values in the coordinates. Through the metadata I found that the coordinate system is NAD83. I looked up the EPSG code for NAD83 on google and put it as the coordinate reference system (crs). 
+```{r}
+NC_pollut <- NC_pollut %>% filter(!is.na(LATITUDE83) & !is.na(LONGITUDE83))
+NC_pollut_sf <- st_as_sf(NC_pollut, coords = c("LONGITUDE83", "LATITUDE83"), crs = 4269)
+
+#make sure it has a coordinate system 
+st_crs(NC_pollut_sf)
+st_crs(nc1)
+
+
+
+```
+
+Lets plot it on top of our already pretty map by adding another geom_sf line to ggplot
+```{r}
+ggplot() +
+  geom_sf(data = nc1, aes(fill = medincome), color = NA) + 
+  labs(title = "Median income in North Carolina Tracts") + 
+  scale_fill_gradient(low = "white", high = "red", na.value ="gray", name = "Median income") +  
+  geom_sf(data = NC_pollut_sf) +
+  theme( axis.text =  element_blank(),
+    axis.ticks =  element_blank(),
+    panel.background = element_blank())
+```
+It looks like there are several outliers that are probably incorrect. Lets just remove those by clipping the data to the state outline. 
+
+A common spatial data wrangling issue is to subset a set of spatial objects based on their location relative to another spatial object. In our case, we want to keep sites  that are in North Carolina. Think of what were doing here as something similar to taking a cookie cutter shaped like the NC (in our case, the sf object nc1) and cutting out the metro area from our cookie dough of pollution sites (NC_pollut_sf). We can do this using the st_join() function
+
+```{r, warning = FALSE, message = FALSE, results = 'hide'}
+NC_pollut_sf_small <- st_join(x = NC_pollut_sf, y = nc1, 
+                               join = st_within, left=FALSE)
+
+
+```
+The above code tells R to identify the points in the hazardous waste data that intersect with the polygon nc1. We indicate we want a polygon intersection by specifying join = st_intersects. The option left=FALSE tells R to eliminate the points from NC_pollut_sf that do not intersect (make it TRUE and see what happens).
+
+lets map it out
+```{r}
+ggplot() +
+  geom_sf(data = nc1, aes(fill = medincome), color = NA) + 
+  labs(title = "Median income in North Carolina Tracts") + 
+  scale_fill_gradient(low = "white", high = "red", na.value ="gray", name = "Median income") +  
+  geom_sf(data = NC_pollut_sf_small) +
+  theme( axis.text =  element_blank(),
+    axis.ticks =  element_blank(),
+    panel.background = element_blank())
+```
+
+
+much better! 
+
+## Within a distance to hazardous waste sites 
+Lets mirror the paper and find out how many census tracks are within a distance of 1000 meters of a hazardous waste site. 
+Things are getting a little complicated so lets simplify our datasets. 
+
+```{r}
+sites <- NC_pollut_sf_small %>% dplyr::select(geometry, INTEREST_TYPES, SITE_TYPE_NAME)
+census_tracts <- nc1 
+```
+
+First we need to convert the data into a coordinate system that is in meters. I just looked here for a coordinate reference system that covers North Carolina and uses meters https://epsg.io/5070 . If we don't do this we would have to specify our distance in degrees which is okay, but not great.  st_transform transforms the geographic coordinate system of the data. If this is confusing to you, that's alright. Basically, there are a lot of different ways to smoosh a 3 dimensional globe into a 2-dimensional space, and sometimes certain ways work better depending on where you want to look (at the equator versus the poles versus at North Carolina). 
+
+```{r}
+census_tracts = st_transform(census_tracts, crs = 5070)
+sites = st_transform(sites, crs = 5070)
+
+```
+
+plot again to make sure we are alright 
+
+```{r}
+ggplot() +
+  geom_sf(data = census_tracts, aes(fill = medincome), color = NA) + 
+  labs(title = "Median income in North Carolina Tracts") + 
+  scale_fill_gradient(low = "white", high = "red", na.value ="gray", name = "Median income") +  
+  geom_sf(data = sites) +
+  theme( axis.text =  element_blank(),
+    axis.ticks =  element_blank(),
+    panel.background = element_blank())
+```
+Note it looks a little skewed because of the geographic transformation. thats okay! 
+
+now select out which sites are within a certain distance 
+```{r}
+sel <- st_is_within_distance(census_tracts, sites, dist = 1000)
+
+summary(lengths(sel) > 0)
+```
+This shows that there are 806 points in the target object census_tracts within the threshold distance of sites. How to retrieve the values associated with the respective sel tracts? The solution is again with st_join(), but with an addition dist argument (set to 1000 m below):
+
+```{r, warning = FALSE, message = FALSE, results = 'hide'}
+census_tracts<- st_join(census_tracts, sites,
+            join = st_is_within_distance, dist = 1000)
+```
+
+Note that the number of rows in the joined result is greater than the target. This is because some tracts are close to multiple sites. Lets create a new variable called near site, and have it be 1 if they are near a site, and 0 if not. Then we will group by the census tract and get back to our original sized data. You may get some NA arguments here, that is because all I care about is the numeric data so I chose to summarize as mean. If you care about the categorical data, you can summarize_at different columns to get out the most frequent categorical dataset. This is a short cut. 
+```{r, warning = FALSE, message = FALSE, results = 'hide'}
+census_tracts$near_site <- ifelse(is.na(census_tracts$INTEREST_TYPES), 0, 1)
+census_tracts <- census_tracts %>% group_by(Tract) %>% summarize_all(mean, na.rm = TRUE)
+
+#now lets rename that near_site variable 
+census_tracts$near_site <- ifelse(census_tracts$near_site == 0, "far", "near")
+```
+
+
+## Comparison of Means on one km buffered sites 
+Lets test whether census tracts outside of the 1km (1000 meters) have a higher or lower income compared to tracts closer to the sites 
+
+```{r}
+as.data.frame(census_tracts) %>% group_by(near_site) %>% shapiro_test(medincome)
+#not normally distributed!
+
+as.data.frame(census_tracts) %>% mutate(log.medincome = log(medincome)) %>% group_by(near_site) %>% shapiro_test(log.medincome)
+#still not normal so lets do non-parametric 
+
+census_tracts %>% wilcox_test(medincome ~ near_site)
+
+census_tracts %>% ggplot() + geom_boxplot(aes(y = medincome, x = near_site))
+```
+
+Wow, it looks like census tracts near waste sites have a lower median income than tract groups farther away. 
+
+##calculating distance to superfund sites 
+what if, instead we wanted to ask if there is a linear relationship between distance to superfund sites and median income? 
+
+We will first compute the distance to the nearest site
+```{r}
+feat <- st_nearest_feature(census_tracts, sites)
+
+```
+
+Then compute the distance to just this site
+Use the by_element = TRUE argument so that the distance is only measured from the 1st tract to the first site (not all of them, which is the default)
+```{r}
+min_dist <- st_distance(census_tracts, sites[feat,], 
+                        by_element = TRUE)
+
+census_mindist <- census_tracts %>% 
+  mutate(site_mindist = min_dist) 
+
+```
+
+
+Now lets plot and see how distance to site changes with income 
+
+```{r}
+library(units)
+library(ggpmisc)
+census_mindist %>% ggplot(aes(x = site_mindist, y = medincome)) + geom_point() + geom_smooth(method = "lm")+ 
+  stat_fit_glance(method = 'lm',
+       method.args = list(formula = y ~ x),  geom = 'text', 
+       aes(label = paste("p-value=", signif(..p.value.., digits = 4), 
+                      "   R-squared=", signif(..r.squared.., digits = 3), sep = "")),
+       label.x = 20000, label.y = 25, size = 5)
+```
+It looks like the first way of asking this question is more appropriate (there is not a strong linear relationship, we could try logging), and perhaps we know there is a certain threshold distance to superfund sites that is especially dangerous, making the comparison of means tests more appropriate. 
+
+#In class assignment!
+Make a map of median income at the county level in a state other than North Carolina. Take a screenshot of your map and upload it to sakai. 
+
+
+# Problem Set 9
+
+Use the following variables:
+Proportion of residents who are non-Hispanic white at the tract level in North Carolina 
+Proportion of residents who have a Bachelor's degree at the tract level in North Carolina 
+
+To ask 1) if census tracts within 5km of hazardous waste sites have a higher or lower proportion of non-hispanic white residents and 2) if census tracts within 5km of hazardous waste sites have a higher or lower proportion of residents with a bachelors degree. Note the new buffer distance
+
+1. Create two beautiful maps (one for each census variable) 10
+  The fill should be different between the two maps (different scale_fill_gradients), the maps should be labeled.  
+  Each map should include the hazardous waste sites as points, shape varying based on site type names). 
+2. Make two tables that summarize the census variables for areas within the buffer distance and outside of the buffer distance (mean, sd). 10
+3. Test the difference in means (or medians) for the two census variables inside and outside of the 5km buffer. Present your results from your tests in a few sentences. Make sure to check your assumptions. 20 points
+
+Turn in a knitted PDF of your maps, tables, and a few sentences describing your comparisons. 
+
+
+

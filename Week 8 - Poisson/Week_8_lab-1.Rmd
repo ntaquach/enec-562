@@ -1,0 +1,517 @@
+---
+title: "Week_7_lab"
+author: "Sarah Roberts"
+output: html_document
+---
+
+# Poisson Regression
+We are going to start with the example we looked at in class. An article by Poole (1989) investigated whether mating success in male elephants increases with age and whether there is a peak age for mating success. To address this question, the research team followed 41 elephants for one year and recorded both their ages and their number of matings. 
+
+Start by loading the data and run some exploratory data analysis (EDA)
+```{r}
+library(Sleuth3)
+eledat <- case2201
+```
+
+
+create a histogram of the data to see if it can be modeled using a poisson distribution 
+```{r}
+hist(eledat$Matings)
+```
+The histogram is skewed right, following a Poisson distribution, suggesting that Poisson regression may be appropriate.
+
+Next, lets Plot matings by age and add a least squares line.
+```{r}
+plot(Matings ~ Age, data = eledat)
+abline(lm(Matings ~ Age, data = eledat))
+```
+The data doesn’t seem to fit the least squares line very well, suggsting that linear regression might not be appropriate.
+
+Instead of just fitting a standard linear model (which is actually a special case of a glm with family="gaussian"(link="identity)), we instead will fit a generalized linear model. For the random component, we select the “Poisson” as our family, and the link function will be the log function. This means that the predictions that come from a Poisson regression model will be on the log-scale, and thus exponentiating those fitted values will yield predictions in the original scale.
+
+To convince you that a poisson model is more appropriate, I will fit a linear model (OLS) and compare to a poisson 
+
+
+
+```{r}
+ele_lin <- lm(Matings ~ Age, data = eledat)
+ele_lin <- glm(Matings ~ Age, data = eledat, family="gaussian"(link="identity")) #this is the same as above
+summary(ele_lin)
+
+library(performance)
+check_model(ele_lin, check = c("linearity", "homogeneity", "qq","pp_check"))
+
+```
+The first thing you should notice is the OLS model allows for negative predictions (which is impossible - you can't have negative age). The second issue is in the residuals. 
+Examining the plots 2 and 3 we see that the variance of the residuals increases with fitted values. A reasonable next step might be to consider a Poisson regression model since:
+
+Our data are counts and can thus only take on integer values.
+The variance of the Poisson distribution is equal to the mean (and thus, the variance will increase linearly with the fitted values).
+
+
+Note, by default, R will use a log link when modeling data using the Poisson distribution. We could, however, use other links by specifying the link argument to the family function
+
+
+Now lets fit the poisson 
+```{r}
+ele_pois <- glm(Matings ~ Age, data = eledat, family="poisson")
+summary(ele_pois)
+```
+
+##Check Assumptions
+
+###Dispersion 
+First we want to check the main assumption of dispersion (variance = mean). 
+
+We can start with a rootogram 
+```{r}
+  ###########
+  # rootogram
+library(vcd)
+fit <- goodfit(ele_pois$y, type = "pois") 
+rootogram(fit)
+```
+This plot is called a rootgram. Tukey suggested a variation on a histogram for non-Gaussian distributions. The red curved line is the theoretical Poisson fit. “Hanging” from each point on the red line is a bar, the height of which represents the difference between expected and observed counts. A bar hanging below 0 indicates underfitting. A bar hanging above 0 indicates overfitting. The counts have been transformed with a square root transformation to prevent smaller counts from getting obscured and overwhelmed by larger counts.
+
+The rootgram gives us a sense of over/underdispersion, but since this is the main assumption of a poisson model (the mean = variance), we should check this by hand as well. In a Poisson distribution, the (conditional) variance is identical to the (conditional) mean. In real data, the (conditional) variance is often larger than the (conditional) mean. When the variance is larger than theoretically expected, this is called overdispersion. We can calculate this by hand (we want values close to 1). There is also a test for this, but it doesn't work for negative binomial or quasi-poisson so I will avoid (dispersion_test(model))
+
+(Usually if the overdispersion is larger than 2 we will prefer a different model that better accounts for the fact that  
+mean ≠ variance)
+
+```{r}
+E2 <- resid(ele_pois, type = "pearson")
+N  <- nrow(eledat)
+p  <- length(coef(ele_pois))  
+sum(E2^2) / (N - p)
+```
+
+###Distribution 
+We can also plot the empirical vs. theoretical distributions to see if the poisson distribution fits our data best. Empirical distributions are frequency distributions of observed scores. Theoretical distributions are distributions based on logic or mathematical formulas. 
+```{r}
+library("fitdistrplus")
+fit <- fitdist(eledat$Matings, "pois", method = "mle")
+summary(fit) #this is our lambda selected using maximum likelihood
+
+plot(fit, histo = TRUE)
+plotdist(eledat$Matings, histo = TRUE, demp = TRUE)
+```
+
+
+###Multicollinearity 
+Multicollinearity can also be present in generalized linear models. Despite the nonlinear effect of the predictors on the response, the predictors are combined linearly. Due to this, if two or more predictors are highly correlated between them, the fit of the model will be compromised since the individual linear effect of each predictor will be hard to separate from the rest of correlated predictors. We only have one predictor, so we aren't testing VIF here, but same rules apply as always. 
+
+###Linearity 
+finally, we assume there is a linear relationship between the log(counts) and the predictor variable. Check that using you coefficients. You can do this for each of your predictor variables (we only have one)
+
+```{r}
+mydata <- eledat %>% 
+  mutate(pred = predict(ele_pois)) 
+
+#Create the Scatter Plots:
+ggplot(mydata, aes(Age, log(Matings)))+
+  geom_point() +
+  geom_smooth(method = "loess") + 
+  theme_bw() + geom_line(aes(x = Age, y = pred))
+```
+##Interpretation 
+Let's interpret our model. Parameters are given on the scale of the link function (in this case the log) - so we have to exponentiate. The intercept (e^B0) is the mean of the Poisson distribution when X1=0. 
+
+```{r}
+summary(ele_pois)
+```
+
+
+For us, B1 = .06869, so an increase of 1 year in age is associated with an increase in the expected number of elephant mates by a multiplicative factor of (e^.06869) or 1.07 (or increases by 7%).
+
+##Model evaluation of Fit 
+###Deviance
+The model residual deviance can be used to assess the degree to which the predicted values differ from the observed. When a model is true, we can expect the residual deviance to be distributed as a χ2 random variable with degrees of freedom equal to the model’s residual degrees of freedom. Note - when means (counts) are small (<5), deviance test does not work well. For generalized linear models, instead of computing something like an  R2 measure, it is more common to test overall model fit. This is done by comparing an estimated model to a saturated model. A saturated model, has as many parameters as unique patterns in the data, and therefore fits the data perfectly. Whilst a model that always fits the data perfectly is not very interesting from a modelling point-of-view, it provides a useful criterion to compare less complex models to. The question asked in this comparison can be stated as: how well does my model perform compared to a perfect model of the Data Generating Process?
+
+H0: model fits the data
+ non-significant test means the model fits the data well
+
+
+```{r}
+1-pchisq(ele_pois$deviance, ele_pois$df.residual)  # GOF test
+```
+
+null hypothesis is that our model is correctly specified
+we have evidence to accept the null, and that our model fits well
+
+Pretend our model wasn't correctly specified -  There are several reasons why lack-of-fit may be observed. (1) We may be missing important covariates or interactions; a more comprehensive data set may be needed. (2) There may be extreme observations that may cause the deviance to be larger than expected; however, our residual plots did not reveal any unusual points. (3) Lastly, there may be a problem with the Poisson model. In particular, the Poisson model has only a single parameter, λ, for each combination of the levels of the predictors which must describe both the mean and the variance. This limitation can become manifest when the variance appears to be larger than the corresponding means. In that case, the response is more variable than the Poisson model would imply, and the response is considered to be overdispersed.
+
+
+###Likelihood ratio test 
+A comparison of null deviance and residual deviance is used to test the significance of parameters		
+Likelihood Ratio Test is used for this nested test, following a χ2 distribution under H0 being true
+
+```{r}
+library(lmtest)
+ele_pois_0 <- glm(Matings ~ 1, data = eledat, family="poisson")
+lrtest(ele_pois_0, ele_pois)
+anova(ele_pois_0, ele_pois,test= "Chisq") #these are the same!
+
+```
+
+There is another way in which to assess how useful age is in our model. A deviance is a way in which to measure how the observed data deviates from the model predictions; it is similar to sum of squared errors (unexplained variability in the response) in LLSR regression. Because we want models that minimize deviance, we calculate the drop-in-deviance when adding age to the model with no covariates (the null model). The deviances for the null model and the model with age can be found in the model output. Our test is significant, indicating that including the parameter age significantly increases the likelihood of the data. Go back to logistic regression if this doesn't make sense to you. 
+
+#Adding a quadratic term. 
+drop-in-deviance test suggests that a linear term in age is useful. But our EDA suggests that a quadratic model might be more appropriate. A quadratic model would allow us to see if there exists an age where the number of matings, on average, a maximum. The output for a quadratic model appears below.
+
+```{r}
+eledat <- eledat %>% mutate(Age2 = Age*Age)
+ele_pois_quad = glm(Matings ~ Age + Age2, family = poisson, 
+              data = eledat)
+summary(ele_pois_quad)
+```
+It looks like the p-value is not significant, but let's also look at the drop in deviance test 
+```{r}
+anova(ele_pois, ele_pois_quad, test = "Chisq")
+```
+It looks like adding in the quadratic term doesn't provide a significant drop in deviance. 
+
+
+#Addressing overdispersion 
+##Quasi-poisson
+Pretend we had overdispersion in our model (say our overdispersion factor was 3) - i.e residual variance is three times what it should be according to our model. You have several options. the first is to fit a quasi-poisson. Note, I am going to show you how to do this, but it gets a bit confusing because it is fitted via quasi-likelihood 
+
+```{r}
+ele_qpois <- glm(Matings ~ Age, data=eledat,
+           family=quasipoisson(link='log'))
+summary(ele_qpois)
+```
+
+
+By estimating the dispersion parameter, quasi-Poisson regression allows to account for overdispersion and computation of more accurate standard errors. A downside of quasi-Poisson regression is that the distribution of the dependent variable is no longer a member of the exponential family. In fact, quasi-Poisson regression does not specify a clear probability distribution for the dependent variable at all. As a result, the likelihood of the parameters,p(DATA|θ). is not properly defined either. What remains is a quasi-likelihood, where only the conditional means and variances are specified. In the absence of a likelihood function, parameters can not be estimated by maximum likelihood; rather, they are estimated by maximum quasi-likelihood. Nevertheless, maximum quasi-likelihood estimators share many aspects with maximum likelihood estimators. In particular, the quasi-likelihood estimators are unbiased for the regression parameters β
+
+##Negative Binomial 
+Another approach to dealing with overdispersion is to model the response using a negative binomial instead of a Poisson distribution. An advantage of this approach is that it introduces another parameter in addition to λ, which gives the model more flexibility and, as opposed to the quasi-Poisson model, the negative binomial model assumes an explicit likelihood model. The negative binomial distribution, like the Poisson distribution, describes the probabilities of the occurrence of whole numbers greater than or equal to 0. Unlike the Poisson distribution, the variance and the mean are not equivalent. This suggests it might serve as a useful approximation for modeling counts with variability different from its mean. The variance of a negative binomial distribution is a function of its mean and has an additional parameter, k, called the dispersion parameter. 
+
+```{r}
+ele_nbm <- glm.nb(Matings ~ Age, data = eledat)
+summary(ele_nbm)
+```
+We interpret the coefficients the same way as the poisson model. Lets look at the overdispersion parameter and other assumptions 
+```{r}
+E2 <- resid(ele_nbm, type = "pearson")
+N  <- nrow(eledat)
+p  <- length(coef(ele_nbm))  
+sum(E2^2) / (N - p)
+```
+
+Closer to 1 than the poisson model. 
+
+```{r}
+fit <- goodfit(ele_pois$y, type = "nbinom") 
+rootogram(fit)
+```
+Honestly this is pretty similar to the poisson model (which makes sense since we didnt have much overdispersion)
+
+We can compare the AIC from both models 
+```{r}
+AIC(ele_nbm)
+AIC(ele_pois)
+```
+
+Again, virtually the same - but good to know. 
+
+We also can use Likelihood Ratio Test: LR=2(lnL1−lnL2). Estimate model 1 as Negative Binomial, then estimate model 2 as Poisson with the same specification as model 1 (although it will naturally be without the dispersion parameter). Poisson is nested within Negative Binomial (α=0): the null hypothesis is that the restricted model (i.e., Poisson) is a better fit of the data.
+
+```{r}
+lrtest(ele_nbm, ele_pois)
+```
+There is no significant difference between the two models in terms of likelihood. 
+
+Finally, we can compare the distributions 
+
+```{r}
+fitp <- fitdist(eledat$Matings, "pois", method = "mle")
+fitnb <- fitdist(eledat$Matings, "nbinom", method = "mle")
+denscomp(list(fitp, fitnb),demp = TRUE, fittype = "o", dempcol = "black",
+  legendtext = c("Poisson", "negative binomial"))
+
+```
+It looks to me like the negative binomial fits the data better (green dots are closer to black dots than the red dots)
+
+
+#Zero inflated models 
+Sometimes count data will have a ridiculous amount of zeros and very few observed counts. Zero-inflated models model two distinct phases of the data generating process:
+
+The process that moves a unit from zero to some discrete outcome (a binary process)
+The process that generates the observed count (a Count process)
+
+To check if your data is zero inflated, you can look at the percentage of 0s 
+```{r}
+100*sum(eledat$Matings == 0)/nrow(eledat)
+```
+
+And you can check the observed vs. predicted zeros in the model
+```{r}
+check_zeroinflation(ele_pois, tolerance = 0.05)
+a <- as.list(check_zeroinflation(ele_pois, tolerance = 0.05))
+newdata <- as.data.frame(matrix(nrow = 2, ncol = 2))
+newdata$V1 <- c("predicted", "observed")
+newdata[2,1] <- a$predicted.zeros
+newdata[2,2] <- a$observed.zeros
+```
+Just to show you how this would work, lets add in some data that has a bunch of zeros 
+```{r}
+eledat1 <- eledat %>% mutate(Matings = 0)
+eledat1 <- rbind(eledat, eledat1)
+```
+
+
+
+now check for zero inflation from a poisson model 
+
+```{r}
+ele_pois1 <-  glm(Matings ~ Age, data = eledat1, family="poisson")
+check_zeroinflation(ele_pois1)
+```
+
+alright, looks like our model is not fitting zeros well. Just for the heck of it, lets see if there is more dispersion now and we should consider a neg-binomial model as well. 
+
+```{r}
+E2 <- resid(ele_pois1, type = "pearson")
+N  <- nrow(eledat1)
+p  <- length(coef(ele_pois1))  
+sum(E2^2) / (N - p)
+```
+
+```{r}
+fit <- goodfit(ele_pois1$y, type = "pois") 
+rootogram(fit)
+```
+
+It appears there is also overdispersion. Lets charge ahead with a zero inflated negative binomial. Note - if you don't have overdispersion, you can use a zero-inflated poisson. 
+
+First, lets fit the negative binomial model 
+
+
+```{r}
+ele_nbm1 <-  glm.nb(Matings ~ Age, data = eledat1)
+check_zeroinflation(ele_nbm1)
+
+fit <- goodfit(ele_nbm1$y, type = "nbinom") 
+rootogram(fit)
+```
+Looks better
+
+##Runit 
+A zero-inflated model assumes that zero outcome is due to two different processes. For instance, in the example of elephants presented here, the two processes are that an elephant has mated vs. mate. If not mated, the only outcome possible is zero. If mated, it is then a count process. The two parts of the a zero-inflated model are a binary model, usually a logit model to model which of the two processes the zero outcome is associated with and a count model, in this case, a negative binomial model, to model the count process. 
+
+```{r}
+library(glmtoolbox)
+ele_zinb <- zeroinf(Matings ~ Age | ## Predictor for the Poisson process
+                 Age, ## Predictor for the Bernoulli process;
+               dist = 'negbin',
+               data = eledat1)
+
+summary(ele_zinb)
+```
+Report results from the ZINB - 
+
+Below the model call, you will find a block of output containing negative binomial regression coefficients for each of the variables along with standard errors, z-scores, and p-values for the coefficients. A second block follows that corresponds to the inflation model. This includes logit coefficients for predicting excess zeros along with their standard errors, z-scores, and p-values.
+
+Let's make it easier to interpret the coefficients from both parts of the model 
+```{r}
+## Exponentiated coefficients
+expCoef <- exp(coef((ele_zinb)))
+expCoef <- matrix(expCoef, ncol = 2)
+#rownames(expCoef) <- names(coef(ele_pois))
+colnames(expCoef) <- c("Count_model","Zero_inflation_model")
+expCoef
+```
+
+The Count_model can be interpreted in the same was as a negative binomial coefficient. The zero-nflation part is a model for the occurrence of non zeros vs zeros. It can be interpreted in the same was as a logistic regression model where success means a non-zero count and you are modelling the probability of obtaining a non-zero count.
+
+A one year increase in age is associated with an increase in number of matings by a factor of exp(0.07343) = 1.076 while holding all other variables in the model constant (p < .05). Thus, the higher an elephants age, the more matings. 
+
+Even though age is not significant for the zero-inflation coefficients, I want to make sure you know how to interpret them. 
+
+If it were significant you would say, with a one year increase in age the odds that he would be in the “Certain Zero” group would increase by a factor of exp(0.005743) = 1.00576 (or increase by .5%). In other words, the higher the age, the more likely the elephant is a certain zero. 
+
+Here is a quicker summary: (Zero-inflation model) The baseline odds of not mating are 0.78. The odds increase with a one unit increase in age by .005, although that is not significant. (Count model). The baseline number of matings is .169 among those who have a change to mate. A unit increase in age is associated with an increase in number of matings by a factor of exp(0.07343) = 1.076 while holding all other variables in the model constant (p < .05).
+
+
+We can calculate wald confidence intervals as we have done over and over again 
+```{r}
+confint(ele_zinb)
+
+#by hand 
+#age 
+0.07343+(1.96*0.01805)
+0.073430-(1.96*0.01805)
+
+
+```
+
+
+```{r}
+# Dispersion statistic
+E2 <- resid(ele_zinb, type = "pearson")
+N  <- nrow(eledat1)
+p  <- length(coef(ele_zinb))  
+sum(E2^2) / (N - p)
+```
+
+Compare that model with the non-zero inflated version 
+
+```{r}
+AIC(ele_zinb, ele_nbm1)
+lrtest(ele_zinb, ele_nbm1)
+```
+
+it looks like our zero inflated model has a lower AIC. As for the LR test, 𝐻0:Both NB and ZINB fit the data equally well. We reject the null, so we should use the zero inflated model. 
+
+Finally, we can compare the distributions 
+
+```{r}
+library(gamlss)          # defines pdf, cdf of ZIP
+library(VGAM) # defines pdf, cdf of ZINB
+fitp <- fitdist(eledat1$Matings, "pois", method = "mle")
+fitnb <- fitdist(eledat1$Matings, "nbinom", method = "mle")
+fitzp <- fitdist(eledat1$Matings, "ZIP", method = "mle", start = list(mu = mean(eledat1$Matings), sigma = 0.5))
+fitznb <- fitdist(eledat1$Matings, "zinegbin", method = "mle", start = list(munb = mean(eledat1$Matings), size = nrow(eledat1)))
+denscomp(list(fitp, fitnb, fitzp, fitznb),demp = TRUE, fittype = "o", dempcol = "black",
+  legendtext = c("Poisson", "negative binomial", "ZIP", "ZINB"))
+
+```
+
+#Compare models using prediction 
+
+I am going to compare a poisson model, negative binomial model, and zero inflated version of those in terms of out of sample prediction. This is called cross-validation. I am going to write my own for loop this time, so I can manually change my training vs. testing size. If this doesn't make sense - ask me what it is doing!!! 
+
+```{r}
+#lets write our own functions to assess predictive performance first 
+r2_func <-function(preds,actual){ 
+  return(1- sum((preds - actual) ^ 2)/sum((actual - mean(actual))^2))
+}
+
+RMSE_func <- function(preds, actual){
+  return(sqrt(mean((actual - preds)^2)))
+}
+```
+
+
+```{r}
+set.seed(321)
+compare_var <- as.data.frame(matrix(ncol = 3, nrow = 0))
+colnames(compare_var) <- c("model_type", "R2", "RMSE")
+
+Bootstrap_times <- 100 #this is how many times i want the loop to run
+smp_size <- floor(0.70 * nrow(eledat1)) #this is how i want to split training and testing data 
+
+
+for(i in 1:Bootstrap_times) {
+  train_ind <- sample(seq_len(nrow(eledat1)), size = smp_size)
+  train <- eledat1[train_ind, ]
+  test <- eledat1[-train_ind, ]
+  
+  #models 
+  pois_mod <- glm(Matings ~ Age, data = train, family="poisson")
+  nb_mod <- glm.nb(Matings ~ Age, data = train)
+  zipois_mod <- zeroinfl(Matings ~ Age | ## Predictor for the Poisson process
+                 Age, ## Predictor for the Bernoulli process;
+               dist = 'negbin',
+               data = train)
+
+  zinb_mod <- zeroinfl(Matings ~ Age | ## Predictor for the Poisson process
+                 Age, ## Predictor for the Bernoulli process;
+               dist = 'poisson',
+               data = train)
+
+  
+  #now predict the models on the test data 
+  
+  pois_pred <- predict(pois_mod, newdata = test, type = "response")
+  nb_pred <- predict(nb_mod, newdata = test, type = "response")
+  zipois_pred <- predict(zipois_mod, newdata = test, type = "response")
+  zinb_pred <- predict(zinb_mod, newdata = test, type = "response")
+ 
+  #make a dataframe for each modeling type
+  pois <- as.data.frame(matrix(ncol =3))
+  pois$V1 <- "pois"
+  pois$V2 <- r2_func(pois_pred, test$Matings)
+  pois$V3 <- RMSE_func(pois_pred, test$Matings)
+  
+  nb <- as.data.frame(matrix(ncol =3))
+  nb$V1 <- "nb"
+  nb$V2 <- r2_func(nb_pred, test$Matings)
+  nb$V3 <- RMSE_func(nb_pred, test$Matings)
+  
+  zipois <- as.data.frame(matrix(ncol =3))
+  zipois$V1 <- "zipois"
+  zipois$V2 <- r2_func(zipois_pred, test$Matings)
+  zipois$V3 <- RMSE_func(zipois_pred, test$Matings)
+  
+  zinb <- as.data.frame(matrix(ncol =3))
+  zinb$V1 <- "zinb"
+  zinb$V2 <- r2_func(zinb_pred, test$Matings)
+  zinb$V3 <- RMSE_func(zinb_pred, test$Matings)
+  
+  #combine all of those 
+  
+  dat <- rbind(pois, nb, zipois, zinb)
+colnames(dat) <- c("model_type", "R2", "RMSE")
+
+  #combine it to our dataframe outside of the for loop 
+  
+  compare_var <- rbind(compare_var, dat)
+}
+
+#take the mean of all of those runs 
+
+compare_var %>% pivot_longer(R2:RMSE, names_to = "metric", values_to = "values") %>% group_by(model_type, metric) %>% summarise(mean_val = mean(values)) %>% pivot_wider(names_from = "metric", values_from = "mean_val") %>% arrange(-R2)
+```
+
+It looks like the zero inflated poisson does the best in terms of out of sample prediction. We can also compare the AIC of all of the models as well (built on the full dataset)
+
+
+```{r}
+ #models 
+  pois_mod <- glm(Matings ~ Age, data = eledat1, family="poisson")
+  nb_mod <- glm.nb(Matings ~ Age, data = eledat1)
+  zipois_mod <- zeroinfl(Matings ~ Age | ## Predictor for the Poisson process
+                 Age, ## Predictor for the Bernoulli process;
+               dist = 'negbin',
+               data = eledat1)
+
+  zinb_mod <- zeroinfl(Matings ~ Age | ## Predictor for the Poisson process
+                 Age, ## Predictor for the Bernoulli process;
+               dist = 'poisson',
+               data = eledat1)
+  
+  AIC(pois_mod, nb_mod, zipois_mod, zinb_mod)
+```
+
+The zero inflated negative binomial and poisson have the lowest AIC. You could go with either one in my opinion. 
+
+# In class assignment
+
+```{r}
+setwd("C:/GitHub Projects/enec-562/Week 7 - Midterm Review/Week_7_Resources/Week_7_Resources/Data")
+
+library(ggplot2)
+library(tidyverse)
+Neonics <- read.csv("ECOTOX_Neonicotinoids_Insects_raw.csv")
+
+endpoint_bar <- Neonics %>%
+  count(Endpoint) %>%
+  ggplot() +
+  geom_bar(aes(x = reorder(Endpoint, desc(n)), y = n, fill = Endpoint), stat = "identity") +
+  labs(x = "Endpoint", y = "Count") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  theme(axis.text.y = element_text(colour = "black", size = 10, face = "bold"), 
+        axis.text.x = element_text(colour = "black", face = "bold", size = 10), 
+        legend.text = element_text(size = 9, face ="bold", colour ="black"), 
+        legend.position = "right", axis.title.y = element_text(face = "bold", size = 7), 
+        axis.title.x = element_text(face = "bold", size = 12, colour = "black", margin = margin(t=5)), 
+        axis.title.y.left = element_text(face = "bold", size = 12, colour = "black",margin=margin(r=5)),
+        legend.title = element_text(size = 9, colour = "black", face = "bold"), 
+        panel.background = element_blank(), panel.border = element_rect(colour = "black", fill = NA, size = 1.2),
+        legend.key=element_blank(),
+        plot.title = element_text(color = "black", size = 18, face = "bold", hjust = 0.5))
+
+ggsave("Endpoint.png", endpoint_bar, bg="white", dpi = 300, width = 8, height = 5)
+```
