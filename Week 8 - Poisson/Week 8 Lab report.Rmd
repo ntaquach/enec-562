@@ -1,0 +1,293 @@
+---
+title: "Week 8 Lab Report"
+author: "Nguyen Tien Anh Quach"
+date: "`r Sys.Date()`"
+output:
+  pdf_document: default
+  html_document: default
+chunk_output_type: inline
+indent: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = F)
+```
+
+```{r message=F, warning=F}
+library(performance)
+library(ggplot2)
+library(dplyr)
+library(Sleuth3)
+library(vcd)
+library(car)
+library(lmtest)
+library(MASS)
+library(broom)
+library(vcd)
+library(stats)
+```
+
+```{r message=F, warning=F}
+
+moondat <- ex2226
+```
+
+```{r message=F, warning=F}
+anh_theme <- function() {
+  theme(axis.text.x = element_text(hjust = 1)) +
+    theme(axis.text.y = element_text(colour = "black", size = 10, face = "bold"), 
+          axis.text.x = element_text(colour = "black", face = "bold", size = 10), 
+          legend.text = element_text(size = 10, face ="bold", colour ="black"), 
+          legend.position = "right", axis.title.y = element_text(face = "bold", size = 7), 
+          axis.title.x = element_text(face = "bold", size = 12, colour = "black", margin = margin(t=5)), 
+          axis.title.y.left = element_text(face = "bold", size = 12, colour = "black",margin=margin(r=5)),
+          legend.title = element_text(size = 10, colour = "black", face = "bold"), 
+          panel.background = element_blank(), panel.border = element_rect(colour = "black", fill = NA, size = 1.2),
+          legend.key=element_blank(),
+          plot.title = element_text(color = "black", size = 18, face = "bold", hjust = 0.5))
+}
+```
+
+# Histogram of the moons
+
+```{r message=F, warning=F}
+moondat %>% ggplot(aes(x=Moons)) +
+  geom_histogram(fill = "skyblue", color = "black", bins = 20) +anh_theme() + 
+  labs(x = "Number of Moons", y = "Count")
+```
+\begin{center}
+Figure 1. Histogram of the number of moons among different planets.
+\end{center}
+
+## Linear model
+
+```{r message=F, warning=F, results=F}
+moon.linear <- lm(Moons ~ Distance + Diameter + Mass, data = moondat)
+summary(moon.linear)
+```
+I ran the linear model with Moons as the response variable and Distance, Diameter, and Mass as the predictor variables. The model is significant (F(3, 9) = 101.8, p < 0.001) with only Diameter being the significant predictor (p < 0.001). 
+
+```{r message=F, warning=F,fig.align='center',fig.height=8, fig.width=8 }
+check_model(moon.linear)
+```
+\begin{center}
+Figure 2. Model assumptions check.
+\end{center}
+
+As shown in Figure 2, VIFs are all below 5. Therefore, the multicollinearity assumption is met. In addition, normality of residuals is met, as points fall approximately along the line. However, the linearity and homogeneity of variance assumptions are not met as the lines are not flat and horizontal. In conclusion, with several assumptions violated, linear model may not be the best option.
+
+## Poisson model
+
+```{r message=F, warning=F, results=F}
+moon.pois <- glm(Moons ~ Distance + Diameter + Mass, data = moondat, family = "poisson")
+summary(moon.pois)
+
+exp(coef(moon.pois))
+```
+The Poisson model showed that diameter (p < 0.001) and mass (p < 0.001) of a planet are significant predictors of the number of moons. 
+\newline
+Holding other variables constant:
+\newline
+An increase of one unit in diameter is associated with an increase in the expected number of moons by 56%.
+
+An increase of one unit in mass results in a decrease in the expected number of moons by 0.4%.
+
+## Poisson model assumptions
+
+### Multicollinearity
+
+```{r message=F, warning=F, results=F}
+vif(moon.pois)
+```
+All VIFs are below 5, indicating that the multicollinearity assumption is met!
+
+### Dispersion
+
+```{r message=F,warning=F, results=F}
+fit <- goodfit(moon.pois$y, type = "pois") 
+rootogram(fit)
+
+## cal by hand
+E2 <- resid(moon.pois, type = "pearson")
+N  <- nrow(moondat)
+p  <- length(coef(moon.pois))  
+sum(E2^2) / (N - p)
+```
+\begin{center}
+Figure 3. Poisson model rootogram.
+\end{center}
+
+As shown in the rootogram (Fig. 3), most bars hang below 0, indicating underfitting. I also calculated the dispersion statistic and observed that the value is 4.66, which means that a different model may be needed.
+
+### Distribution
+
+```{r message=F, warning=F, results=F, fig.align='center', fig.width=6, fig.height=3}
+library("fitdistrplus")
+fit <- fitdist(moondat$Moons, "pois", method = "mle")
+summary(fit) #this is our lambda selected using maximum likelihood
+
+plot(fit, histo = TRUE)
+#plotdist(moondat$Moons, histo = TRUE, demp = TRUE)
+```
+\begin{center}
+Figure 4. Empirical vs. Theoretical distribution.
+\end{center}
+
+From Figure 4, it is quite clear that the Poisson model is not fitting the distribution of the data very well.
+
+### Linearity
+
+```{r message=F, warning=F, results=F}
+moon.data.pred <- moondat %>% 
+  mutate(pred = predict(moon.pois)) 
+
+#Create the Scatter Plots:
+linear.dist <- ggplot(moon.data.pred, aes(y=Moons, x=Distance))+
+  geom_point() +
+  geom_smooth(method = "loess") + 
+  theme_bw() + geom_line(aes(x = Distance, y = pred))
+
+linear.mass <- ggplot(moon.data.pred, aes(y=Moons, x=Mass))+
+  geom_point() +
+  geom_smooth(method = "loess") + 
+  theme_bw() + geom_line(aes(x = Mass, y = pred))
+
+linear.diameter <- ggplot(moon.data.pred, aes(y=Moons, x=Diameter))+
+  geom_point() +
+  geom_smooth(method = "loess") + 
+  theme_bw() + geom_line(aes(x = Diameter, y = pred))
+
+library(patchwork)
+linear.dist / linear.mass / linear.diameter
+```
+\begin{center}
+Figure 5. Linear assumption check.
+\end{center}
+
+From Figure 5, it is clear that none of the predictor variables has a linear relationship with the response variable. 
+
+## Evaluate Poisson model fit
+
+### Likelihood ratio test
+
+```{r message=F, warning=F, results=F}
+moon.pois.0 <- glm(Moons ~ 1, data = moondat, family="poisson")
+lrtest(moon.pois.0, moon.pois)
+#anova(moon.pois.0, moon.pois,test= "Chisq") 
+```
+The likelihood ratio test yielded significant results (p < 0.001). Therefore, including the predictor variables significantly increased the likelihood of the data.
+
+### Goodness of fit test
+
+```{r message=F, warning=F, results=F}
+1-pchisq(moon.pois$deviance, moon.pois$df.residual)  # GOF test
+```
+The goodness of fit test yielded significant p-value (p < 0.001). Therefore, the null hypothesis is rejected and the model did not fit the data well.
+
+## Negative binomial model
+
+```{r message=F, warning=F, results=F}
+moon_nbm <- glm.nb(Moons ~ Distance + Diameter + Mass, data = moondat)
+summary(moon_nbm)
+
+exp(coef(moon_nbm))
+```
+The negative binomial model showed similar results, that diameter (p < 0.001) and mass (p = 0.027) of a planet are significant predictors of the number of moons. 
+\newline
+Holding other variables constant:
+\newline
+An increase of one unit in diameter is associated with an increase in the expected number of moons by 92%.
+
+An increase of one unit in mass results in a decrease in the expected number of moons by 1%.
+
+### Dispersion
+
+```{r message=F, warning=F, results=F}
+E2 <- resid(moon_nbm, type = "pearson")
+N  <- nrow(moondat)
+p  <- length(coef(moon_nbm))  
+sum(E2^2) / (N - p)
+```
+
+The dispersion statistic for the negative binomial model is now 1.32, which is much closer to 1 than the Poisson model. Several possible explanations why negative binomial is now a better model:
+\newline
+1. This dataset contains count data => Variance in this dataset is different from mean. 
+2. Negative binomial distribution introduces another parameter, k - dispersion parameter, that is in addition to lambda => this gives the model more flexibility. 
+
+### Likelihood ratio test
+
+```{r message=F, warning=F, results=F}
+lrtest(moon.pois, moon_nbm)
+```
+Likelihood ratio test yielded significant p-value (p < 0.001). Therefore, there is a significant difference between the Poisson and negative binomial models. 
+\newline
+The negative binomial model (-30.98) has higher log likelihood than the Poisson model (-37.95). Thus, it is safe to conclude that using negative binomial distribution improved the fit of the model (Fig. 6).
+\newline
+```{r message=F, warning=F, fig.align='center', fig.width=5, fig.height=4}
+library("fitdistrplus")
+fitp <- fitdist(moondat$Moons, "pois", method = "mle")
+fitnb <- fitdist(moondat$Moons, "nbinom", method = "mle")
+denscomp(list(fitp, fitnb),demp = TRUE, fittype = "o", dempcol = "black",
+  legendtext = c("Poisson", "negative binomial"))
+```
+\begin{center}
+Figure 6. Negative binomial and Poisson distribution model comparison.
+\end{center}
+
+### Rootogram
+
+The rootogram of the negative binomial distribution (Fig. 7) seems to fit the data so much better than the one of Poisson distribution (Fig. 3). Despite not being the best model, less numbers of bars are hanging below 0, indicating better prediction because most observations in Figure 3 (i.e., Poisson model) were shown to be underpredicted. 
+
+```{r message=F, warning=FALSE}
+fit.nbm <- goodfit(moon_nbm$y, type = "nbinom") 
+rootogram(fit.nbm)
+```
+
+\begin{center}
+Figure 7. Negative binomial model rootogram.
+\end{center}
+
+### Expected moons for Jupiter
+
+The model equation is:
+
+$$log(expected moons) = -0.426 + 0.020 \times Distance + 0.652 \times Diameter -  0.009 \times Mass$$ 
+```{r message=F, warning=F, results=F}
+log.expected.moon.jupiter = -0.426 + 0.020 * 5.20 + 0.652 * 11.209 - 0.009 * 317.8000
+(actual.jupiter.moons <- exp(log.expected.moon.jupiter))
+```
+
+Therefore, the number of expected moons for Jupiter is: `r round(actual.jupiter.moons, 0)`
+
+## Zero-inflated model
+
+Because negative binomial distribution fit the data much better than Poisson distribution, I am using the zero-inflated negative binomial model for this part.
+
+### Zero-inflated negative binomial model
+```{r message=F, warning=F, results=F}
+library(glmtoolbox)
+moon_zinb <- zeroinf(Moons ~ Distance + Diameter + Mass | ## Predictor for the Poisson process
+                  Distance + Diameter + Mass, ## Predictor for the Bernoulli process;
+               dist = 'negbin',
+               data = moondat)
+
+summary(moon_zinb)
+
+exp(coef(moon_zinb))
+```
+The zero-inflated negative binomial model showed similar results, that diameter (p < 0.001) and mass (p < 0.001) of a planet are significant predictors of the number of moons. 
+\newline
+Holding other variables constant:
+\newline
+An increase of one unit in diameter is associated with an increase in the expected number of moons by 43%.
+
+An increase of one unit in mass results in a decrease in the expected number of moons by 1%.
+
+### LR test and comparison of AIC
+
+```{r message=F, warning=F, results=F}
+lrtest(moon_nbm, moon_zinb)
+AIC(moon_nbm, moon_zinb)
+```
+
+The negative binomial model is better because is has lower AIC (71.9), compared to the zero-inflated negative binomial model, with AIC of 80.7. Also, the log likehood of the NB model is -30.98, higher than the ZINB model (log likehood = -32.35). Thus, it is safe to conclude that using negative binomial distribution fit the data better than the ZINB model.

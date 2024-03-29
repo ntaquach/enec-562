@@ -515,3 +515,18 @@ endpoint_bar <- Neonics %>%
 
 ggsave("Endpoint.png", endpoint_bar, bg="white", dpi = 300, width = 8, height = 5)
 ```
+
+1. Create a histogram of the number of moons (5)
+2. Run a linear model with Moons as the response variable and Distance, Diameter and Mass as the predictor variables. 
+  Explain why a linear model is not appropriate in words and using diagnostic figures (check_model) (5)
+3. Run a poisson regression using the same formula 
+  a. test the assumptions - discuss if any assumptions fail (5)
+  c. Evaluate the model fit using the likelihood ratio test and deviance (5)
+4. Run a negative binomial model  
+  a. report the dispersion parameter and discuss why it is different from the poisson model (5)
+  b. report likelihood ratio test (negative binomial vs. poisson) (5)
+  c. Interpret the coefficients (5)
+  d. compare the rootgram of the negative binomial model to the poisson model and discuss difference in words and show figures (5)
+  e. Predict the number of moons for Jupiter - don't worry about confidence or prediction intervals (5)
+5. Run a zero-inflated model (you need to decide between zero inflated poisson or negative binomial based on overdispersion). Include all three X variables in both portions of the model (the zero-only and count-only)
+  a. compare the results of your zero inflated model to the negative binomial model using the LR test and AIC. You do not need to do any cross validation. Which fits the data better? (5)
