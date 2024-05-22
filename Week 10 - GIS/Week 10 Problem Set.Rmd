@@ -1,0 +1,234 @@
+---
+title: "Week 10 Problem Set"
+author: "Nguyen Tien Anh Quach"
+date: "`r Sys.Date()`"
+output:
+  pdf_document: default
+  html_document: default
+chunk_output_type: inline
+indent: true
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = F)
+```
+
+```{r, warning = FALSE, message = FALSE, results = F}
+library(tidyverse)
+library(tidycensus)
+library(sf) 
+library(tmap)
+library(rmapshaper)
+library(ggplot2)
+library(spdep)
+```
+
+```{r, warning = FALSE, message = FALSE, results = F}
+census_api_key("224b85597180fed0e9625fb771e54c72fa44490b", overwrite = TRUE, install = TRUE)
+```
+
+```{r, warning = FALSE, message = FALSE, results = F}
+v18 <- load_variables(2018, "acs5", cache = TRUE)
+```
+
+```{r, warning = FALSE, message = FALSE, results = F}
+nc.prob <- get_acs(geography = "tract", 
+              year = 2018,
+              variables = c(tpopr = "B03002_001",
+                            nhwhite = "B03002_003", tot.bach = "B07009_005"), 
+              state = "NC",
+              survey = "acs5", 
+              geometry = TRUE)
+
+nc.prob = nc.prob %>% select(-moe) %>% rename (Tract = NAME) %>%
+  pivot_wider(names_from = "variable", values_from = "estimate")
+
+nc.prob <- nc.prob %>% mutate(pnhwhite = nhwhite/tpopr, ptot.bach = tot.bach/tpopr)
+```
+
+```{r, warning = FALSE, message = FALSE, results = F}
+setwd("C:/GitHub Projects/enec-562/Week 10 - GIS")
+NC_pollut <- read.csv("STATE_SINGLE_NC.csv")
+
+
+#lets see how many of each type of site we have
+NC_pollut %>% 
+  group_by(SITE_TYPE_NAME) %>%
+  summarise(no_rows = length(SITE_TYPE_NAME))
+
+NC_pollut <- NC_pollut %>% filter(SITE_TYPE_NAME == "BROWNFIELDS SITE" | SITE_TYPE_NAME == "CONTAMINATED SITE" | SITE_TYPE_NAME == "POTENTIALLY CONTAMINATED SITE")
+
+NC_pollut <- NC_pollut %>% filter(!is.na(LATITUDE83) & !is.na(LONGITUDE83))
+NC_pollut_sf <- st_as_sf(NC_pollut, coords = c("LONGITUDE83", "LATITUDE83"), crs = 4269)
+
+#make sure it has a coordinate system 
+st_crs(NC_pollut_sf)
+st_crs(nc.prob)
+
+NC_pollut_sf_small <- st_join(x = NC_pollut_sf, y = nc.prob, 
+                               join = st_within, left=FALSE)
+```
+
+```{r message=F, warning=F, fig.height = 5, fig.width = 10}
+sites <- NC_pollut_sf_small %>% dplyr::select(geometry, INTEREST_TYPES, SITE_TYPE_NAME)
+census_tracts_prob <- nc.prob
+
+census_tracts_prob = st_transform(census_tracts_prob, crs = 5070)
+sites = st_transform(sites, crs = 5070)
+
+#plot
+
+ggplot() +
+  geom_sf(data = census_tracts_prob, aes(fill = pnhwhite), color = NA) + 
+  labs(title = "Percent non-Hispanic white in North Carolina Tracts against hazardous waste sites") + 
+  scale_fill_gradient(low = "#f7fcfd", high = "#00441b", na.value ="gray", name = "Percent non-Hispanic white") +  
+  geom_sf(data = sites, aes(shape=SITE_TYPE_NAME)) +
+  theme( axis.text =  element_blank(),
+    axis.ticks =  element_blank(),
+    panel.background = element_blank())
+
+```
+
+```{r message=F, warning=F, fig.height = 5, fig.width = 10}
+ggplot() +
+  geom_sf(data = census_tracts_prob, aes(fill = ptot.bach), color = NA) + 
+  labs(title = "Percent Bachelor's degree in North Carolina Tracts against hazardous waste sites") + 
+  scale_fill_gradient(low = "#f7fcfd", high = "#bd0026", na.value ="gray", name = "Percent Bachelor's degree") +  
+  geom_sf(data = sites, aes(shape=SITE_TYPE_NAME)) +
+  theme( axis.text =  element_blank(),
+    axis.ticks =  element_blank(),
+    panel.background = element_blank())
+```
+
+2. Make two tables that summarize the census variables for areas within the buffer distance and outside of the buffer distance (mean, sd). 10
+
+# Percent non Hispanic white within and outside 5 km buffer
+
+```{r message=F, warning=F, results=F}
+sel_nhwhite <- st_is_within_distance(census_tracts_prob, sites, dist = 5000)
+
+summary(lengths(sel_nhwhite) > 0)
+
+census_tracts_prox<- st_join(census_tracts_prob, sites,
+            join = st_is_within_distance, dist = 5000)
+
+census_tracts_prox$near_site <- ifelse(is.na(census_tracts_prox$INTEREST_TYPES), 0, 1)
+census_tracts_prox <- census_tracts_prox %>% group_by(Tract) %>% summarize_all(mean, na.rm = TRUE)
+
+#now lets rename that near_site variable 
+census_tracts_prox$near_site <- ifelse(census_tracts_prox$near_site == 0, "far", "near")
+```
+The table below showed the mean and SD of percent non-Hispanic white within (near) and outside (far) of the 5 km buffer zone. 
+
+```{r warning=F, message=F, echo=F}
+library(kableExtra)
+census_tracts_prox %>%
+  st_drop_geometry() %>%
+  filter(!is.na(pnhwhite) & !is.na(ptot.bach)) %>% 
+  group_by(near_site) %>%
+  summarise(mean.pnhwhite = mean(pnhwhite),
+            sd.pnhwhite = sd(pnhwhite)) %>% 
+  rename( "Proximity" = near_site,
+          "Mean pct. non-Hispanic white" = mean.pnhwhite,
+         "SD of pct. non-Hispanic white" = sd.pnhwhite) %>%
+  kable() %>%
+  column_spec(1:1, width = "1.5cm") %>%
+  kable_styling(position = "center") %>%
+  kable_styling(latex_options = "HOLD_position")
+``` 
+
+# Percent Bachelor's degree within and outside 5 km buffer
+
+Similar to the table above, this table shows the percent Bachelor's degree of people living within (near) and outside (far) of the 5 km buffer. 
+
+```{r warning=F, message=F, echo=F}
+library(kableExtra)
+census_tracts_prox %>%
+  st_drop_geometry() %>%
+  filter(!is.na(pnhwhite) & !is.na(ptot.bach)) %>% 
+  group_by(near_site) %>%
+  summarise(mean.ptotbach = mean(ptot.bach),
+            sd.ptotbach = sd(ptot.bach)) %>% 
+  rename( "Proximity" = near_site,
+          "Mean pct. Bachelor" = mean.ptotbach,
+         "SD of pct. Bachelor" = sd.ptotbach) %>%
+  kable() %>%
+  column_spec(1:1, width = "1.5cm") %>%
+  kable_styling(position = "center") %>%
+  kable_styling(latex_options = "HOLD_position")
+```
+
+
+
+3. Test the difference in means (or medians) for the two census variables inside and outside of the 5km buffer. Present your results from your tests in a few sentences. Make sure to check your assumptions. 20 points
+
+# Testing near vs. far for percent non-Hispanic white
+
+I used Shapiro-Wilk test to test for the normality of percent non-Hispanic white. The test yielded significant results (p < 0.001). I attempted to log transform the data, which did not help with the normality (p < 0.001). Therefore, I finally used the Wilcoxon test to test the difference in mean of percent non-Hispanic white between near and far tracts. 
+\newline
+
+The test yielded significant result (p < 0.001), showing that mean percent non-Hispanic white is significantly lower at near tracts (figure below).
+
+```{r message=F, warning=F}
+anh_theme <- function() {
+  theme(axis.text.x = element_text(hjust = 1)) +
+    theme(axis.text.y = element_text(colour = "black", size = 10, face = "bold"), 
+          axis.text.x = element_text(colour = "black", face = "bold", size = 10), 
+          legend.text = element_text(size = 10, face ="bold", colour ="black"), 
+          legend.position = "right", axis.title.y = element_text(face = "bold", size = 7), 
+          axis.title.x = element_text(face = "bold", size = 12, colour = "black", margin = margin(t=5)), 
+          axis.title.y.left = element_text(face = "bold", size = 12, colour = "black",margin=margin(r=5)),
+          legend.title = element_text(size = 10, colour = "black", face = "bold"), 
+          panel.background = element_blank(), panel.border = element_rect(colour = "black", fill = NA, size = 1.2),
+          legend.key=element_blank(),
+          plot.title = element_text(color = "black", size = 18, face = "bold", hjust = 0.5))
+}
+```
+
+```{r message=F, warning=F, results=F, fig.pos= 'center', fig.width=8, fig.height=6}
+library(rstatix)
+as.data.frame(census_tracts_prox) %>%
+    filter(!is.na(pnhwhite) & !is.na(ptot.bach)) %>% 
+  group_by(near_site) %>% shapiro_test(pnhwhite)
+#not normally distributed
+
+as.data.frame(census_tracts_prox) %>% 
+    filter(!is.na(pnhwhite) & !is.na(ptot.bach)) %>% 
+  mutate(log.pnhwhite = log(pnhwhite)) %>% group_by(near_site) %>% shapiro_test(log.pnhwhite)
+#still not normal 
+
+census_tracts_prox %>%   filter(!is.na(pnhwhite) & !is.na(ptot.bach)) %>% 
+  wilcox_test(pnhwhite ~ near_site)
+
+census_tracts_prox %>%   filter(!is.na(pnhwhite) & !is.na(ptot.bach)) %>% 
+  ggplot() + geom_boxplot(aes(y = pnhwhite, x = near_site)) +
+  anh_theme() + labs(x = "Proximity", y = "Percent non-Hispanic white")
+```
+
+
+
+
+# Testing near vs. far for percent Bachelor's degree
+
+Similar to percent non-Hispanic white, percent Bachelor's degree data are non-normal before (p < 0.001) and after log-transformation (p < 0.001). Therefore, I used Wilcoxon test to test for the significant difference in mean percent Bachelor's degree between near and far sites.
+\newline
+
+The test yielded significant results (p < 0.001); therefore, percent people with Bachelor's degree at near sites is significantly lower than that at far sites (figure below).
+
+```{r message=F, warning=F, results=F, fig.pos= 'center', fig.width=8, fig.height=6}
+library(rstatix)
+as.data.frame(census_tracts_prox) %>%   filter(!is.na(pnhwhite) & !is.na(ptot.bach)) %>% 
+  group_by(near_site) %>% shapiro_test(ptot.bach)
+#not normally distributed
+
+as.data.frame(census_tracts_prox) %>%   filter(!is.na(pnhwhite) & !is.na(ptot.bach)) %>% 
+  mutate(log.ptot.bach = log(ptot.bach)) %>% group_by(near_site) %>% shapiro_test(log.ptot.bach)
+#still not normal 
+
+census_tracts_prox %>%   filter(!is.na(pnhwhite) & !is.na(ptot.bach)) %>% 
+  wilcox_test(ptot.bach ~ near_site)
+
+census_tracts_prox %>% ggplot() + geom_boxplot(aes(y = ptot.bach, x = near_site)) +
+  anh_theme() + labs(x = "Proximity", y = "Percent Bachelor's degree")
+```
+
+

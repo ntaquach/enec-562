@@ -55,14 +55,17 @@ In order to directly download data from the Census API, you need a key. You can 
 
 
 ```{r, warning = FALSE, message = FALSE, results = 'hide'}
-census_api_key("3ae0b5f2990a2cc0b1386b85d0f937d66b8ddc74")
+census_api_key("224b85597180fed0e9625fb771e54c72fa44490b", overwrite = TRUE, install = TRUE)
 ```
 
 The function for downloading American Community Survey (ACS) Census data is get_acs(). The command for downloading decennial Census data is get_decennial(). Getting variables using the Census API requires knowing the variable ID - and there are thousands of variables (and thus thousands of IDs) across the different Census files. To rapidly search for variables, use the commands load_variables() and View(). Because we’ll be using the ACS in this lab, let’s check the variables in the 5-year period (2014-2018) using the following commands.
 
 ```{r}
 v18 <- load_variables(2018, "acs5", cache = TRUE)
-View(v18)
+#View(v18)
+
+#https://stackoverflow.com/questions/74341811/how-to-get-rid-of-this-api-key-issue-tidycensus
+
 ```
 
 A window should have popped up showing you a record layout of the 2014-18 ACS. To search for specific data, select “Filter” located at the top left of this window and use the search boxes that pop up. For example, type in “Hispanic” in the box under “Label”. You should see near the top of the list the first set of variables we’ll want to download - race/ethnicity. Let’s extract that data and total population for North Carolina counties using the get_acs() command
@@ -242,6 +245,7 @@ https://www.epa.gov/frs/epa-frs-facilities-state-single-file-csv-download
 Make sure you read about the data in the metadata file. 
 
 ```{r, warning = FALSE, message = FALSE}
+setwd("C:/GitHub Projects/enec-562/Week 10 - GIS")
 NC_pollut <- read.csv("STATE_SINGLE_NC.csv")
 
 
@@ -370,6 +374,7 @@ census_tracts$near_site <- ifelse(census_tracts$near_site == 0, "far", "near")
 Lets test whether census tracts outside of the 1km (1000 meters) have a higher or lower income compared to tracts closer to the sites 
 
 ```{r}
+library(rstatix)
 as.data.frame(census_tracts) %>% group_by(near_site) %>% shapiro_test(medincome)
 #not normally distributed!
 
@@ -420,6 +425,32 @@ It looks like the first way of asking this question is more appropriate (there i
 
 #In class assignment!
 Make a map of median income at the county level in a state other than North Carolina. Take a screenshot of your map and upload it to sakai. 
+
+```{r message=F, warning=F}
+al <- get_acs(geography = "tract", 
+              year = 2018,
+              variables = c(tpopr = "B03002_001", 
+                            nhwhite = "B03002_003", nhblk = "B03002_004", 
+                            nhasn = "B03002_006", hisp = "B03002_012", medincome = "B19013_001"), 
+              state = "AL",
+              survey = "acs5", 
+              geometry = TRUE)
+
+al <- al %>% rename(Tract = NAME) %>%
+  pivot_wider(names_from = "variable", values_from = "estimate")
+
+#plot AL
+
+al_medin <- ggplot(al) +
+  geom_sf(aes(fill = medincome), color = NA) + 
+  labs(title = "Median income in Alabama Tracts") + 
+  scale_fill_gradient(low = "#f7fcfd", high = "#00441b", na.value ="gray", name = "Median income") +  
+  theme( axis.text =  element_blank(),
+    axis.ticks =  element_blank(),
+    panel.background = element_blank())
+
+ggsave("Median income AL.png", al_medin, dpi = 300, width = 4, height = 4)
+```
 
 
 # Problem Set 9

@@ -1,0 +1,97 @@
+---
+title: "Week_8_Problem_Set"
+author: "Sarah Roberts"
+output: pdf_document
+---
+
+Please turn in a knitted PDF of your code, but this time SHOW YOUR CODE CHUNKS. Answer each question in the area provided. 
+
+#Setup 
+Remember that residential carbon data from week 5? Lets revisit it and try and predict state level carbon using tree based methods. 
+
+We are interested in modeling state-level residential carbon production per capita, so we need to calculate a per capita value. Our units are now metric tons carbon per capita.
+
+```{r}
+carbon <- read.csv("carbon.csv") 
+carbon$res.carbon.pc.mt<-carbon$residentialco2mmt/carbon$population*1000000
+head(carbon$res.carbon.pc.mt)
+```
+
+We want to whether the following variables help predict residential carbon per capita. We will use the same explanatory variables from week 5: 
+
+temp: Average annual temperature (degrees F)
+trumpvote: Percent of state that voted for President Trump 
+climatechange: standardized climate change google search share
+bachelorsdegree: % of state population with Bachelor’s Degree
+Incomepercapitaus: Median per capita income (USD)
+rps: Renewable portfolio standard (0/1) =  Renewable Portfolio Standards mandates a certain percentage of energy production from renewable sources. States that have an RPS have been coded a 1 and states without a zero (0). 
+urban_percent: Percent of state population that is urban
+West: the state is located in the west
+
+Create a dataframe with only the variables you are interested in modeling. This is so that we can directly compare it to the linear models you all ran a few weeks ago. In practice, when doing machine learning, you would let R pick out the most important variables.  
+
+```{r}
+carbon <- carbon %>% select(temp, trumpvote, climatechange, bachelorsdegree, incomepercapitaus, rps, urban_percent, west, res.carbon.pc.mt)
+carbon <- carbon %>% drop_na
+```
+
+#Problem 1 
+Build a decision tree using tidymodels with res.carbon.pc.mt as the response variable, and the rest as the predictor variables. Train the tree on 3/4 of the data. Print the tree (7 points)
+
+Code: 
+```{}
+
+
+```
+Question: Interpret the tree in words. What is the most important variable for predicting residential carbon? (3 points)
+  Answer: 
+
+#Problem 2 
+Build a bagged tree using tidymodels on the same data. Train the tree on 3/4 of the data. Bootstrap 100 times. (7 points)
+
+Code: 
+```{}
+
+
+```
+
+#Problem 3 
+Build a random forest using tidymodels on the same data. Train the forest on 3/4 of the data. Set mtry to 1/3 of the predictor variables. Don't worry about tuning any of the other parameters. Print the variable importance (7 points)
+
+Code: 
+```{}
+
+
+```
+Question: How does random forest rank variable importance? (3 points)
+  Answer: 
+
+#Problem 4 
+Build a boosted regression tree using tidymodels on the same data. Train on 3/4 of the data. Set ntree to 500. Don't worry about tuning any of the other parameters (7 points)
+
+Code: 
+```{}
+
+
+```
+
+#Problem 5
+Build a multiple linear regression using tidymodels and the same data and formula as above (hint - google parsnip linear models). Train on 3/4 of the data. (7 points)
+
+Code: 
+```{}
+
+
+```
+
+
+#Problem 6 
+Calculate the RMSE for each of the 5 modeling techniques above on the in-sample (training) data and the out-of-sample (testing data). Provide a table of all 10 values. Which modelling technique performed best in and out of sample? (9 points)
+
+Code: 
+```{}
+
+
+```
+
+  Answer: 

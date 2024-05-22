@@ -1,0 +1,292 @@
+---
+title: "FinalProj"
+author: "Zoe Schubert"
+date: "2024-04-14"
+output: word_document
+---
+
+What vegetation microhabitat variables are the best determining factor for the presence of particular small mammal species?
+
+```{r setup, include=FALSE}
+
+library(ggplot2)
+# install.packages("pander")
+# install.packages("permutations")
+# install.packages("gamlss.dist")
+# install.packages("pscl")
+# install.packages("gamlss")
+# install.packages("vcd")
+# install.packages("gtools")
+# install.packages("devtools")
+# install.packages("MuMIn")
+# install.packages("permute")
+# install.packages("MASS")
+# install.packages("partitions")
+library(interactions)
+library(car)
+library(lmtest)
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(GGally)
+library(gvlma)
+library(rstatix)
+library(tidyverse)
+library(outliers)
+library(psych)
+library(caret)
+library(report)
+library(lubridate)
+library(pscl)
+library(glmtoolbox)
+
+```
+
+```{r}
+setwd("C:/GitHub Projects/enec-562/Final Project")
+surveydata <- read.csv("master.avg.csv")
+```
+
+```{r warning=FALSE}
+library(dplyr)
+#selecting columnns of interest - response variable and vegetation variables
+filter_columns <- function(surveydata, columns_to_keep) {
+  surveydata1 <- surveydata %>% select(columns_to_keep)
+  return(surveydata1)
+}
+
+columns_to_keep <- c("total", "MaxHerb", "MaxShrub", "AvgDensity", "WoodyDebri", "GroundCover")
+
+surveydata1 <- filter_columns(surveydata, columns_to_keep)
+
+```
+
+```{r echo = FALSE}
+# histogram of total species counts
+hist(surveydata1$total)
+```
+The frequency of species counts is right-skewed and zero-inflated, a poisson model will be used 
+
+```{r}
+# checking to see if the data are zero-inflated
+100*sum(surveydata1$total == 0)/nrow(surveydata1)
+```
+```{r warning=FALSE}
+library(gamlss.dist)
+library(performance)
+library(pscl)
+survey_pois1 <-  glm(total ~ MaxHerb + MaxShrub + AvgDensity + WoodyDebri + GroundCover, data = surveydata1, family="poisson")
+check_zeroinflation(survey_pois1)
+```
+The data consist of 29.38% zeros, and checking for zero inflation from a Poisson model shows underfitting of zeros. Therefore, a zero-inflated model will be used for this analysis. 
+
+
+Check dispersion:
+
+```{r}
+# checking overdispersion to decide if a neg-binomial should be used
+E2 <- resid(survey_pois1, type = "pearson")
+N  <- nrow(surveydata1)
+p  <- length(coef(survey_pois1))  
+sum(E2^2) / (N - p)
+```
+```{r}
+#rootgram to validate overdispersion
+library(gamlss)
+library(vcd)
+fit <- goodfit(survey_pois1$y, type = "pois") 
+rootogram(fit)
+```
+A dispersion factor of 1.67, and the fit of the above rootgram indicate that overdispersion is not an issue here. Therefore, a zero-inflated Poisson Model can be used. 
+
+Zero-inflated Poisson:
+```{r}
+library(gamlss.dist)
+library(pscl)
+zipois_model <- zeroinfl(total ~ MaxHerb + MaxShrub + AvgDensity + WoodyDebri + GroundCover | ## Predictor for the Poisson process
+                 MaxHerb + MaxShrub + AvgDensity + WoodyDebri + GroundCover, ## Predictor for the Bernoulli process;
+               dist = 'poisson',
+               data = surveydata1)
+
+summary(zipois_model)
+```
+Standard Poisson: 
+```{r echo = FALSE, warning=FALSE}
+# fitting the poisson
+survey_pois <- glm(total ~ MaxHerb + MaxShrub + AvgDensity + WoodyDebri + GroundCover, data = surveydata1, family="poisson")
+summary(survey_pois)
+```
+Comparing mdoels with AIC and LR:
+
+```{r warning=FALSE}
+
+AIC(survey_pois, zipois_model)
+lrtest(survey_pois, zipois_model)
+```
+
+
+Comparing models using prediction:
+
+```{r}
+#
+r2_func <-function(preds,actual){ 
+  return(1- sum((preds - actual) ^ 2)/sum((actual - mean(actual))^2))
+}
+
+RMSE_func <- function(preds, actual){
+  return(sqrt(mean((actual - preds)^2)))
+}
+```
+
+
+```{r warning=FALSE}
+library(MASS)
+set.seed(321)
+compare_var <- as.data.frame(matrix(ncol = 3, nrow = 0))
+colnames(compare_var) <- c("model_type", "R2", "RMSE")
+
+Bootstrap_times <- 100 #this is how many times i want the loop to run
+smp_size <- floor(0.70 * nrow(surveydata1)) #this is how i want to split training and testing data 
+
+
+for(i in 1:Bootstrap_times) {
+  train_ind <- sample(seq_len(nrow(surveydata1)), size = smp_size)
+  train <- surveydata1[train_ind, ]
+  test <- surveydata1[-train_ind, ]
+  
+  #models 
+  pois_mod <- glm(total ~ MaxHerb + MaxShrub + AvgDensity + WoodyDebri + GroundCover, data = train, family="poisson")
+  nb_mod <- glm.nb(total ~ MaxHerb + MaxShrub + AvgDensity + WoodyDebri + GroundCover, data = train)
+  zipois_mod <- zeroinfl(total ~ MaxHerb + MaxShrub + AvgDensity + WoodyDebri + GroundCover | ## Predictor for the Poisson process
+                 MaxHerb + MaxShrub + AvgDensity + WoodyDebri + GroundCover, ## Predictor for the Bernoulli process;
+               dist = 'negbin',
+               data = train)
+
+  zinb_mod <- zeroinfl(total ~ MaxHerb + MaxShrub + AvgDensity + WoodyDebri + GroundCover | ## Predictor for the Poisson process
+                 MaxHerb + MaxShrub + AvgDensity + WoodyDebri + GroundCover, ## Predictor for the Bernoulli process;
+               dist = 'poisson',
+               data = train)
+
+  
+  #now predict the models on the test data 
+  
+  pois_pred <- predict(pois_mod, newdata = test, type = "response")
+  nb_pred <- predict(nb_mod, newdata = test, type = "response")
+  zipois_pred <- predict(zipois_mod, newdata = test, type = "response")
+  zinb_pred <- predict(zinb_mod, newdata = test, type = "response")
+ 
+  #make a dataframe for each modeling type
+  pois <- as.data.frame(matrix(ncol =3))
+  pois$V1 <- "pois"
+  pois$V2 <- r2_func(pois_pred, test$total)
+  pois$V3 <- RMSE_func(pois_pred, test$total)
+  
+  nb <- as.data.frame(matrix(ncol =3))
+  nb$V1 <- "nb"
+  nb$V2 <- r2_func(nb_pred, test$total)
+  nb$V3 <- RMSE_func(nb_pred, test$total)
+  
+  zipois <- as.data.frame(matrix(ncol =3))
+  zipois$V1 <- "zipois"
+  zipois$V2 <- r2_func(zipois_pred, test$total)
+  zipois$V3 <- RMSE_func(zipois_pred, test$total)
+  
+  zinb <- as.data.frame(matrix(ncol =3))
+  zinb$V1 <- "zinb"
+  zinb$V2 <- r2_func(zinb_pred, test$total)
+  zinb$V3 <- RMSE_func(zinb_pred, test$total)
+  
+  #combine all of those 
+  
+  dat <- rbind(pois, nb, zipois, zinb)
+colnames(dat) <- c("model_type", "R2", "RMSE")
+
+  #combine it to our dataframe outside of the for loop 
+  
+  compare_var <- rbind(compare_var, dat)
+}
+
+#take the mean of all of those runs 
+
+compare_var %>% pivot_longer(R2:RMSE, names_to = "metric", values_to = "values") %>% group_by(model_type, metric) %>% summarise(mean_val = mean(values)) %>% pivot_wider(names_from = "metric", values_from = "mean_val") %>% arrange(-R2)
+
+
+
+```
+
+According to the comparisons above, the zero-inflated Poisson model has a lower AIC, and the likelihood ratio test indicates a significant difference in the likelihood of the zero-inflated model and standard model in predicting total species counts. However, prediction indicates that the standard poisson has a lower RMSE than the zero-inflated poisson. We know that the model is zero-inflated, so the zero-inflated poisson should be used but may require cross-validation for predictor variables. 
+
+
+Cross Validation: 
+```{r}
+# looping k-fold cross validation
+library(jtools)
+library(libcoin)
+library(modelr)
+
+library(MuMIn)
+library(partitions)
+library(permutations)
+library(permute)
+pastePerm<- function(row, names){
+  keep<- which(row==1)
+  if(length(keep)==0){
+    return('1')
+  }else{
+    return(paste(names[keep],collapse='+'))
+  }
+}
+my_sqrt <- function(var1){
+  sqrt(var1)
+}
+
+dredgeform<- function(pred, covars, alwaysIn=''){
+  p<- length(covars)
+  perm.tab<- permutations(2, p, v=c(0,1), repeats.allowed=T)
+  myforms<- NULL
+  for(j in 1:nrow(perm.tab)){
+    myforms[j]<- pastePerm(perm.tab[j,], covars)
+  }
+  myforms<- paste0(pred, '~ 1', alwaysIn,'+', myforms)
+  return(myforms)
+}
+
+allformulas<- dredgeform(pred = "total", covars = c("MaxHerb", "MaxShrub", "AvgDensity", "WoodyDebri", "GroundCover"))
+allformulas <- allformulas[2:length(allformulas)] 
+
+```
+
+```{r}
+set.seed(123)
+compare_var <- as.data.frame(matrix(ncol = 4, nrow = 0))
+colnames(compare_var) <- c("formula", "RMSE", "R2", "MAE")
+
+for ( i in 1:length(allformulas)) {
+  
+train.control <- trainControl(method = "repeatedcv", number = 3, repeats = 10)
+# Train the full model
+model_full <- train(as.formula(allformulas[i]), data = surveydata1, method = "pois",
+               trControl = train.control)
+# Summarize the results
+compare_var[i, 1] <- allformulas[i]
+compare_var[i, 2] <- mean(model_full$resample$RMSE)
+compare_var[i, 3] <- mean(model_full$resample$Rsquared, na.rm = T)
+compare_var[i, 4] <- mean(model_full$resample$MAE)
+
+
+}
+
+compare_var$prediction_error_rate <- compare_var$RMSE/mean(surveydata1$total) 
+
+compare_var %>% arrange(prediction_error_rate)
+
+compare_var %>% arrange(RMSE)
+```
+
+
+
+
+
+
+
+

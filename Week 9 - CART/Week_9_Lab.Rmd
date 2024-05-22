@@ -1,13 +1,12 @@
 ---
-title: "Week_8_Lab"
+title: "Week_9_Lab"
 author: "Sarah Roberts"
-date: "2023-03-28"
 output: html_document
 ---
 
-Load packages - I think you all will appreciate using Tidymodels vs. caret, so we will go for it. Note - I am learning alongside you, so this should be fun. 
+Load packages - I think you all will appreciate using Tidymodels vs. caret, so we will go for it. 
 
-We are going to use data from the Program for International Student Assessment (PISA) - you can download it off the web(https://www.oecd.org/pisa/data/), but we will be grabbing it from github. 
+We are going to use data from the Program for International Student Assessment (PISA) - you can download it off the web (https://www.oecd.org/pisa/data/), but we will be grabbing it from github. 
 
 ```{r}
 library(tidymodels)
@@ -203,6 +202,7 @@ test_err <-
   rmse(math_score, .pred)
 
 c("testing error" = test_err$.estimate, "training error" = train_err$.estimate)
+
 ```
 
 Our testing error and our training error have a difference of only  0.4, not bad. The cross-validation tuning seemed to have helped avoid a great deal of overfitting.
@@ -573,3 +573,25 @@ c("Bagged decision trees" = bt_rmse,
 
 ## In class Assignment 
 Create a decision tree that predicts reading score (read_score) using JOYREAD and HOMESCH. Plot the decision tree, changing the color of the nodes to grays instead of blues and take a screenshot of your code and tree and post to Canvas. 
+
+```{r}
+# Define the decision tree and tell it the the dependent
+# variable is continuous ('mode' = 'regression')
+mod1 <- set_engine(decision_tree(mode = "regression"), "rpart")
+
+tflow <-
+  # Plug the data
+  pisa %>%
+  # Begin the tidyflow
+  tidyflow(seed = 23152) %>%
+  # Separate the data into training/testing (we are keeping 3/4 of the data for training)
+  plug_split(initial_split, prop = 3/4) %>%
+  # Plug the formula
+  plug_formula(read_score ~ JOYREAD + HOMESCH) %>%
+  # Plug the model
+  plug_model(mod1)
+
+vanilla_fit <- fit(tflow)
+tree <- pull_tflow_fit(vanilla_fit)$fit
+rpart.plot(tree, box.palette = "Grays")
+```
